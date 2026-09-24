@@ -31,3 +31,57 @@ window = ["A-WIN"]
 [labels]
 layers = ["A-TEXT-IN"]
 ignore = ["IN", "UP", "CH", "SH", "N E I G H B O R", "PLOT LIMIT"]
+
+# ---------------------------------------------------------------------------
+# 3D model settings (plan coordinates in metres).
+# Source tags: [DWG] measured from the plan, [A-201] read from the sections
+# drawing, [ASSUMED] our assumption until confirmed by drawings or the team.
+# ---------------------------------------------------------------------------
+
+[levels]
+ffl = 0.60          # [A-201] ground floor finished level
+mezzanine = 4.00    # [A-201] mezzanine finished level (office side)
+eaves_south = 8.30  # [A-201] top of roof eaves, street side
+eaves_north = 8.79  # [A-201] top of roof eaves, rear side
+ridge = 9.55        # [A-201] top of roof ridge
+
+[roof]
+ridge_y = 182.14    # [ASSUMED] ridge at ~69% of building depth from the street side
+
+[wall_heights]      # heights above finished floor, metres
+internal_low = 4.0  # [ASSUMED] office and amenity partitions, up to mezzanine
+internal_high = 7.2 # [ASSUMED] production-area partitions
+cold_panel = 7.2    # [ASSUMED] insulated cold-room panels
+outbuilding = 3.5   # [ASSUMED] guard rooms, pump and electrical rooms
+boundary = 2.4      # [ASSUMED] plot boundary wall
+
+[zones]
+# [ASSUMED] office/amenity strip along the street side
+low_walls = [[116.67, 154.49, 165.8, 168.9], [116.67, 154.49, 194.87, 160.4]]
+mezzanine = [[116.67, 154.49, 165.8, 168.9]]
+
+[structure]
+grid_layers = ["A-GRID"]            # [DWG] column grid is drawn on the roof plan
+grid_region = [100.0, 68.0, 212.0, 132.0]
+align_layer = "A-BOUNDRY WALL"      # plot boundary appears on both plans; used to align them
+# [DWG] main portal-frame grid lines (roof-plan coordinates); ~9 m bays, 73.76 m overall
+frame_x = [118.18, 127.5, 136.96, 146.46, 155.89, 165.34, 174.05, 183.04, 191.94]
+column_rows_y = [80.48, 119.75]     # [DWG] outer column rows (south, north)
+gable_y = [88.98, 99.93, 106.33, 113.56]  # [ASSUMED] gable wind columns on these grid rows
+purlin_spacing = 1.5                # [ASSUMED] metres, measured on plan
+girt_heights = [2.5, 5.0, 7.0]      # [ASSUMED] above finished floor
+brace_end_bays = true               # [ASSUMED] cross bracing in first and last bays
+sizes_are_indicative = true         # no structural drawings loaded yet
+
+[structure.sizes]                   # [ASSUMED] width, depth in metres (typical, not designed)
+column = [0.25, 0.45]
+gable_column = [0.20, 0.30]
+rafter = [0.20, 0.55]
+eave_beam = [0.15, 0.30]
+purlin = [0.07, 0.20]
+girt = [0.07, 0.20]
+bracing = [0.03, 0.03]
+foundation = [1.8, 0.6]             # pad size, thickness
+
+[viewer]
+label_include = ["PRODUCTION AREA", "RM STORE", "(BLAST", "COLD STORE", "CARTONING", "MARSHALLING", "PM STORE", "PACKAGING AREA", "FILMS", "COOLING AREA", "QA / QC", "PRODUCTION OFFICE", "AIR COMPRESSOR", "PUMP ROOM", "ELECTRICAL ROOM", "GUARD ROOM-1", "U/G LPG", "CHANGING ROOM", "DINING", "RECEPTION", "MAINTENANCE"]

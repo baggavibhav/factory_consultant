@@ -1,0 +1,60 @@
+# Concept-design template: egg grading and packing station.
+name = "Egg grading and packing station"
+
+[building]
+target_depth_m = 30.0
+min_depth_m = 18.0
+max_depth_m = 40.0
+bay_m = 7.5
+roof_pitch_deg = 3.0
+street_strip_depth_m = [6.0, 10.0]
+
+[site]
+setback_front_m = 8.0
+setback_rear_m = 5.0
+setback_west_m = 10.0        # egg receiving yard
+setback_east_m = 12.0        # dispatch yard
+
+[strip]
+office_m2_per_person = 9.0
+office_base_m2 = 12.0
+qa_lab_m2 = 15.0
+amenity_m2_per_staff = 1.6
+amenity_base_m2 = 25.0
+utilities_share = 0.04
+
+[production]
+min_m2_per_line = 250.0
+
+[[hall]]
+group = 1
+name = "Egg receiving"
+share = 14
+category = "storage"
+
+[[hall]]
+group = 2
+name = "Grading and packing"
+share = 38
+category = "production"
+temp_c = 18
+
+[[hall]]
+group = 3
+name = "Egg cold store"
+share = 22
+category = "cold"
+temp_c = 12
+requires = "cold_storage"
+
+[[hall]]
+group = 3
+name = "Packaging store"
+share = 10
+category = "storage"
+
+[[hall]]
+group = 4
+name = "Dispatch"
+share = 12
+category = "dispatch"

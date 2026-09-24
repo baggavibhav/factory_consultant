@@ -24,3 +24,8 @@ tools/
 # OS / editor
 Thumbs.db
 .DS_Store
+
+# Projects created in the web app (drawings, models) stay local
+projects/
+# Frontend build tooling
+frontend/node_modules/

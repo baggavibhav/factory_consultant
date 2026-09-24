@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plant 3D model</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f1eee6;--ink:#1f2328;--ink-2:#5b616a;--rule:#cfc9bc;--card:rgba(250,248,243,.95);--accent:#b4471f;--cold:#2f6f95;--chip:#e6e1d5;--scene-bg:#e9e5da;--ground:#dcd6c8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#15171a;--ink:#e8e4da;--ink-2:#9aa0a8;--rule:#34383e;--card:rgba(28,31,35,.95);--accent:#e0794f;--cold:#79b6da;--chip:#2a2e33;--scene-bg:#15171a;--ground:#1f2226}}
+:root[data-theme="dark"]{--paper:#15171a;--ink:#e8e4da;--ink-2:#9aa0a8;--rule:#34383e;--card:rgba(28,31,35,.95);--accent:#e0794f;--cold:#79b6da;--chip:#2a2e33;--scene-bg:#15171a;--ground:#1f2226}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#stage{position:relative;height:100%}
+#view{position:absolute;inset:0}
+canvas{display:block}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lab{position:absolute;transform:translate(-50%,-50%);font:500 10.5px/1.1 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.04em;color:var(--ink);background:var(--card);border:1px solid var(--rule);padding:2px 5px;border-radius:3px;white-space:nowrap}
+.lab.cold{color:var(--cold);border-color:var(--cold)}
+.hide-labels #labels{display:none}
+#panel{position:absolute;top:16px;left:16px;width:330px;max-width:calc(100% - 32px);max-height:calc(100% - 32px);overflow:auto;background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:16px 18px 14px}
+.eyebrow{font:500 10.5px "IBM Plex Mono",Consolas,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+h1{font-size:18px;line-height:1.25;font-weight:600;margin:0 0 2px;overflow-wrap:anywhere}
+.sub{font-size:12px;color:var(--ink-2);margin:0 0 10px;overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:0 0 10px}
+td,th{padding:4px 0;border-top:1px solid var(--rule);text-align:left;font-weight:400}
+th{color:var(--ink-2);font-size:11px}
+td.n,th.n{text-align:right;font-family:"IBM Plex Mono",Consolas,monospace;font-size:12px}
+.lbl{font:500 10.5px "IBM Plex Mono",Consolas,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin:10px 0 6px;display:flex;justify-content:space-between;align-items:center}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+button{font:500 12px "IBM Plex Sans",system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid var(--rule);border-radius:6px;padding:5px 9px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.badge{font:500 10px "IBM Plex Mono",Consolas,monospace;letter-spacing:.06em;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:1px 5px;text-transform:uppercase}
+details{font-size:12px;color:var(--ink-2);line-height:1.5;border-top:1px solid var(--rule);padding-top:8px;margin-top:8px}
+summary{cursor:pointer;color:var(--ink);font-weight:500}
+#collapse{position:absolute;top:12px;right:12px;padding:3px 8px;font-size:11px}
+#reopen{position:absolute;top:16px;left:16px;display:none}
+.collapsed #panel{display:none}.collapsed #reopen{display:block}
+#hint{position:absolute;right:16px;bottom:14px;font:400 11px "IBM Plex Mono",Consolas,monospace;color:var(--ink-2);background:var(--card);border:1px solid var(--rule);border-radius:6px;padding:5px 8px}
+@media (max-width:640px){#panel{top:auto;bottom:10px;left:10px;right:10px;width:auto;max-width:none;max-height:48%}#hint{display:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="view"></div>
+  <div id="labels"></div>
+  <aside id="panel">
+    <button id="collapse" aria-label="Hide panel">Hide</button>
+    <p class="eyebrow">Factory Consultant Agent · 3D model</p>
+    <h1 id="title">Plant</h1>
+    <p class="sub" id="source"></p>
+    <table id="facts"></table>
+    <div class="lbl">View</div>
+    <div class="row">
+      <button data-view="iso" aria-pressed="true">3D</button>
+      <button data-view="structure" aria-pressed="false">Structure</button>
+      <button data-view="top" aria-pressed="false">Plan</button>
+      <button data-view="street" aria-pressed="false">Street</button>
+      <button data-view="inside" aria-pressed="false">Inside</button>
+    </div>
+    <div class="lbl">Architecture</div>
+    <div class="row">
+      <button data-group="roof" aria-pressed="true">Roof</button>
+      <button data-group="external" aria-pressed="true">External walls</button>
+      <button data-group="internal" aria-pressed="true">Internal walls</button>
+      <button data-group="cold" aria-pressed="true">Cold rooms</button>
+      <button data-group="mezz" aria-pressed="true">Mezzanine</button>
+      <button id="xray" aria-pressed="false">X-ray walls</button>
+      <button id="tLab" aria-pressed="true">Labels</button>
+    </div>
+    <div class="lbl"><span>Structure</span><span class="badge" id="indicative">Indicative sizes</span></div>
+    <div class="row">
+      <button data-group="frames" aria-pressed="true">Frames</button>
+      <button data-group="secondary" aria-pressed="true">Purlins &amp; girts</button>
+      <button data-group="bracing" aria-pressed="true">Bracing</button>
+      <button data-group="foundations" aria-pressed="false">Foundations</button>
+    </div>
+    <table id="schedule"></table>
+    <details id="notes"><summary>Warnings and assumptions</summary><ul id="warn"></ul></details>
+  </aside>
+  <button id="reopen">Show panel</button>
+  <div id="hint">Drag to orbit · scroll to zoom · right-drag to pan</div>
+</div>
+<script>/*__THREE__*/</script>
+<script>/*__ORBIT__*/</script>
+<script>/*__GLTF__*/</script>
+<script>
+const D=/*__DATA__*/null;
+const F=D.facts;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+document.getElementById('title').textContent=F.plant;
+document.getElementById('source').textContent='From '+F.source_file+' · generated '+F.generated_at.replace('T',' ').slice(0,16)+' UTC';
+document.title=F.plant+' · 3D model';
+const lv=F.levels;
+const factRows=[
+ ['Building',F.building_m[0]+' × '+F.building_m[1]+' m'],
+ ['Footprint','≈ '+F.footprint_m2.toLocaleString()+' m²'],
+ ['Portal frames',F.frames+(F.span_m?' · span '+F.span_m+' m':'')],
+ ['Bays',F.bays_m.length?F.bays_m.join(' / ')+' m':'—'],
+ ['Floor / mezzanine','+'+lv.ffl.toFixed(2)+(lv.mezzanine!=null?' / +'+lv.mezzanine.toFixed(2):'')+' m'],
+ ['Eaves / ridge','+'+lv.eaves_south.toFixed(2)+'–'+lv.eaves_north.toFixed(2)+' / +'+lv.ridge.toFixed(2)+' m']
+];
+document.getElementById('facts').innerHTML=factRows.map(r=>'<tr><td>'+esc(r[0])+'</td><td class="n">'+esc(r[1])+'</td></tr>').join('');
+const kindName={foundation:'Foundation pads',column:'Columns',gable_column:'Gable columns',rafter:'Rafters',eave_beam:'Eave beams',purlin:'Purlins',girt:'Girts',bracing:'Bracing'};
+const sched=F.member_schedule||{};
+document.getElementById('schedule').innerHTML='<tr><th>Member</th><th class="n">Qty</th><th class="n">Length</th></tr>'+
+ Object.entries(sched).map(([k,v])=>'<tr><td>'+esc(kindName[k]||k)+'</td><td class="n">'+v.count+'</td><td class="n">'+(k==='foundation'?'—':v.length_m.toLocaleString()+' m')+'</td></tr>').join('');
+if(!F.sizes_indicative)document.getElementById('indicative').style.display='none';
+document.getElementById('warn').innerHTML=(F.warnings||[]).map(w=>'<li>'+esc(w)+'</li>').join('')+
+ '<li>Layout of columns and frames follows the drawing grid; member sizes, purlin/girt spacing and bracing positions are typical values until structural drawings are loaded.</li>';
+
+const host=document.getElementById('view');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+host.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(40,1,0.3,2000);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=0.08;
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a8070,0.9));
+const sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(-60,90,70);scene.add(sun);
+const groundMat=new THREE.MeshLambertMaterial({color:0xdcd6c8,transparent:true,opacity:1});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),groundMat);
+ground.rotation.x=-Math.PI/2;ground.position.y=-0.02;scene.add(ground);
+const grid=new THREE.GridHelper(500,100,0x000000,0x000000);grid.material.opacity=0.06;grid.material.transparent=true;scene.add(grid);
+
+const groups={roof:['roof'],external:['walls_external'],internal:['walls_internal','outbuildings','boundary_wall'],cold:['cold_panels'],mezz:['mezzanine'],
+ frames:['str_column','str_gable_column','str_rafter','str_eave_beam'],secondary:['str_purlin','str_girt'],bracing:['str_bracing'],foundations:['str_foundation']};
+const wallNodes=['walls_external','walls_internal','cold_panels','outbuildings'];
+const nodes={};
+function bin(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a.buffer;}
+new THREE.GLTFLoader().parse(bin(D.glb),'',g=>{
+  g.scene.traverse(o=>{if(o.isMesh){nodes[o.name]=o;o.material.side=THREE.DoubleSide;
+    if(o.material.transparent)o.material.depthWrite=false;
+    o.userData.baseOpacity=o.material.opacity;o.userData.baseTransparent=o.material.transparent;}});
+  scene.add(g.scene);
+  window.edgeMat=new THREE.LineBasicMaterial({color:0x2a2c30,transparent:true,opacity:0.35});
+  ['walls_external','walls_internal','cold_panels'].forEach(n=>{if(nodes[n]){const l=new THREE.LineSegments(new THREE.EdgesGeometry(nodes[n].geometry,30),window.edgeMat);nodes[n].add(l);}});
+  document.querySelectorAll('[data-group]').forEach(b=>setGroup(b.dataset.group,b.getAttribute('aria-pressed')==='true'));
+},e=>{document.getElementById('title').textContent='Could not load model: '+e;});
+
+function setGroup(name,on){(groups[name]||[]).forEach(n=>{if(nodes[n])nodes[n].visible=on;});
+  const b=document.querySelector('[data-group="'+name+'"]');if(b)b.setAttribute('aria-pressed',on);
+  if(name==='foundations'){groupsGroundXray(on);}}
+function groupsGroundXray(on){groundMat.opacity=on?0.35:1;groundMat.depthWrite=!on;if(nodes.floor_slab){nodes.floor_slab.material.transparent=on;nodes.floor_slab.material.opacity=on?0.35:1;}}
+document.querySelectorAll('[data-group]').forEach(b=>b.addEventListener('click',()=>setGroup(b.dataset.group,b.getAttribute('aria-pressed')!=='true')));
+function setXray(on){wallNodes.forEach(n=>{const o=nodes[n];if(!o)return;o.material.transparent=on||o.userData.baseTransparent;o.material.opacity=on?0.18:o.userData.baseOpacity;o.material.depthWrite=!on;});
+  if(window.edgeMat)window.edgeMat.opacity=on?0.07:0.35;
+  document.getElementById('xray').setAttribute('aria-pressed',on);}
+document.getElementById('xray').addEventListener('click',e=>setXray(e.currentTarget.getAttribute('aria-pressed')!=='true'));
+function setLabels(on){document.body.classList.toggle('hide-labels',!on);document.getElementById('tLab').setAttribute('aria-pressed',on);}
+document.getElementById('tLab').addEventListener('click',()=>setLabels(document.body.classList.contains('hide-labels')));
+document.getElementById('collapse').addEventListener('click',()=>document.body.classList.add('collapsed'));
+document.getElementById('reopen').addEventListener('click',()=>document.body.classList.remove('collapsed'));
+
+const labLayer=document.getElementById('labels');
+const labs=(D.labels||[]).map(l=>{const el=document.createElement('div');el.className='lab'+(l.cold?' cold':'');el.textContent=l.text;labLayer.appendChild(el);return {el,v:new THREE.Vector3(...l.pos)};});
+const tmp=new THREE.Vector3();
+function placeLabels(w,h){for(const L of labs){tmp.copy(L.v).project(camera);if(tmp.z>1||tmp.z<-1){L.el.style.display='none';continue;}L.el.style.display='block';L.el.style.left=((tmp.x+1)/2*w)+'px';L.el.style.top=((1-tmp.y)/2*h)+'px';}}
+
+function applyTheme(){const cs=getComputedStyle(document.documentElement);scene.background=new THREE.Color(cs.getPropertyValue('--scene-bg').trim()||'#e9e5da');groundMat.color.set(cs.getPropertyValue('--ground').trim()||'#dcd6c8');const dark=scene.background.getHSL({}).l<0.3;grid.material.color.set(dark?0xffffff:0x000000);}
+applyTheme();try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);}catch(e){}
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+const W0=F.building_m[0],D0=F.building_m[1];
+const views={
+ iso:{p:[-W0*1.25,W0*0.85,D0*2.3],t:[-W0*0.3,0,D0*0.1]},
+ structure:{p:[-W0*1.15,W0*0.62,D0*2.0],t:[-W0*0.3,3,0]},
+ top:{p:[-W0*0.35,W0*1.7,0.01],t:[-W0*0.35,0,0]},
+ street:{p:[-W0*0.1,6,D0*1.6],t:[0,4,0]},
+ inside:{p:[-W0*0.2,3,D0*0.07],t:[-W0*0.47,3.2,-D0*0.33]}
+};
+let anim=null;
+function go(name){const v=views[name];document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.view===name));
+  if(name==='structure'){setGroup('roof',false);setXray(true);setLabels(false);setGroup('foundations',true);}
+  else if(name==='inside'){setGroup('roof',true);setXray(false);setLabels(false);setGroup('foundations',false);}
+  else {setXray(false);setGroup('foundations',false);if(name!=='top')setGroup('roof',true);}
+  anim={t0:performance.now(),p0:camera.position.clone(),q0:controls.target.clone(),p1:new THREE.Vector3(...v.p),q1:new THREE.Vector3(...v.t)};}
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.view)));
+camera.position.set(...views.iso.p);controls.target.set(...views.iso.t);
+let W=1,H=1;
+function resize(){W=host.clientWidth||1;H=host.clientHeight||1;renderer.setSize(W,H,false);renderer.domElement.style.width=W+'px';renderer.domElement.style.height=H+'px';camera.aspect=W/H;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(host);resize();
+function loop(now){requestAnimationFrame(loop);
+  if(anim){const k=Math.min(1,(now-anim.t0)/900),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;camera.position.lerpVectors(anim.p0,anim.p1,e);controls.target.lerpVectors(anim.q0,anim.q1,e);if(k>=1)anim=null;}
+  controls.update();renderer.render(scene,camera);placeLabels(W,H);}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

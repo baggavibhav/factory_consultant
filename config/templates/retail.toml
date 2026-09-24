@@ -1,0 +1,66 @@
+# Concept-design template: retail bakery production (supplies shops).
+name = "Retail bakery production"
+
+[building]
+target_depth_m = 24.0
+min_depth_m = 14.0
+max_depth_m = 32.0
+bay_m = 7.5
+roof_pitch_deg = 3.0
+street_strip_depth_m = [6.0, 10.0]
+
+[site]
+setback_front_m = 8.0
+setback_rear_m = 4.0
+setback_west_m = 4.0
+setback_east_m = 10.0
+
+[strip]
+office_m2_per_person = 9.0
+office_base_m2 = 12.0
+qa_lab_m2 = 15.0
+amenity_m2_per_staff = 1.6
+amenity_base_m2 = 25.0
+utilities_share = 0.04
+
+[production]
+min_m2_per_line = 150.0
+
+[[hall]]
+group = 1
+name = "RM store"
+share = 12
+category = "storage"
+
+[[hall]]
+group = 2
+name = "Production area"
+share = 50
+category = "production"
+temp_c = 23
+
+[[hall]]
+group = 3
+name = "Cooling and packing"
+share = 18
+category = "production"
+
+[[hall]]
+group = 4
+name = "Chiller"
+share = 8
+category = "cold"
+temp_c = 4
+requires = "cold_storage"
+
+[[hall]]
+group = 4
+name = "PM store"
+share = 5
+category = "storage"
+
+[[hall]]
+group = 5
+name = "Dispatch"
+share = 8
+category = "dispatch"

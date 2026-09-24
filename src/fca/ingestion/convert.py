@@ -6,6 +6,7 @@ import logging
 import subprocess
 from pathlib import Path
 
+from fca.ingestion.repair import repair_dxf_file
 from fca.settings import find_dwg2dxf
 
 log = logging.getLogger(__name__)
@@ -55,4 +56,5 @@ def dwg_to_dxf(
         raise ConversionError(
             f"dwg2dxf failed (exit {result.returncode}) for {dwg_path.name}: " + " | ".join(tail)
         )
+    repair_dxf_file(out)  # fix text values LibreDWG sometimes writes across lines
     return out

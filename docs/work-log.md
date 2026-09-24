@@ -6,3 +6,7 @@ document "Factory Consultant Agent - Project Log"; this file mirrors code-relate
 | Date | Time | Change |
 | --- | --- | --- |
 | 24 Sep 2026 | 13:03 | v0.1.0: repo skeleton, DWG to DXF conversion, layer inventory, geometry extraction, CLI, 19 tests (15 unit, 4 reference), Windows setup script, VS Code settings, ADR 0001 and 0002 |
+| 24 Sep 2026 | 14:22 | v0.1.0 verified on Windows (19/19 tests) |
+| 24 Sep 2026 | 14:40 | v0.2.0: DXF repair (sections file now opens), `fca levels`, column grid extraction and plan alignment, portal-frame structure generator with member schedule, glTF 3D export, offline HTML viewer, `fca build-3d`, clearer file-not-found errors, README troubleshooting, ADR 0003; 35 tests |
+| 24 Sep 2026 | 15:22 | v0.3.0: FastAPI backend (projects, drawing upload with conversion, builds, model/labels/viewer downloads), React web app (projects list, new-project drawer, workspace with progress steps, 3D viewer with views/layers/x-ray/room names, overview, structure schedule, files, activity), light/dark/system theme, `fca serve`; 42 Python tests; end-to-end UI test with the reference drawing |
+| 24 Sep 2026 | 15:50 | v0.4.0: start from a brief (brief form, templates, space program, concept layout, structure and 3D), Program tab, dark-mode switch fix, ADR 0005; 56 tests; browser-tested |

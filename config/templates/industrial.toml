@@ -1,0 +1,88 @@
+# Concept-design template: industrial bakery plant.
+# Shares are relative weights of the production hall area (they are normalised).
+# Source: proportions of reference plant #1 plus general bakery-plant practice.
+# Engineering: adjust these to match Switz standards; every change is versioned in git.
+name = "Industrial bakery plant"
+
+[building]
+target_depth_m = 40.0        # preferred clear span (building depth)
+min_depth_m = 24.0
+max_depth_m = 45.0           # beyond this a single clear span is uneconomic
+bay_m = 9.0                  # target frame spacing
+roof_pitch_deg = 3.0
+street_strip_depth_m = [8.0, 14.0]   # offices and amenities strip, min and max depth
+
+[site]
+setback_front_m = 10.0       # street side: parking and pedestrian access
+setback_rear_m = 6.0
+setback_west_m = 6.0
+setback_east_m = 15.0        # truck yard and loading side
+
+[strip]                      # rooms along the street side (areas in m²)
+office_m2_per_person = 10.0
+office_base_m2 = 20.0
+qa_lab_m2 = 30.0
+amenity_m2_per_staff = 1.6   # changing, toilets, hygiene stations, prayer, dining
+amenity_base_m2 = 40.0
+utilities_share = 0.035      # electrical, compressor, services (share of built-up area)
+
+[production]
+min_m2_per_line = 400.0      # warn if production area is below this per line
+
+# Hall zones in process-flow order (west to east). Zones in the same group are
+# stacked north-south in one slice. temp_c is shown on labels.
+[[hall]]
+group = 1
+name = "RM store"
+share = 10
+category = "storage"
+temp_c = 23
+
+[[hall]]
+group = 2
+name = "Production area"
+share = 45
+category = "production"
+temp_c = 23
+
+[[hall]]
+group = 3
+name = "Cooling area"
+share = 10
+category = "production"
+
+[[hall]]
+group = 4
+name = "Packaging area"
+share = 13
+category = "production"
+temp_c = 23
+
+[[hall]]
+group = 4
+name = "PM store"
+share = 6
+category = "storage"
+temp_c = 23
+
+[[hall]]
+group = 5
+name = "Cold store"
+share = 9
+category = "cold"
+temp_c = -18
+requires = "cold_storage"
+
+[[hall]]
+group = 5
+name = "Blast freezer"
+share = 3
+category = "cold"
+temp_c = -40
+requires = "blast_freezer"
+
+[[hall]]
+group = 6
+name = "Marshalling and dispatch"
+share = 7
+category = "dispatch"

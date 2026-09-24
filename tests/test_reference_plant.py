@@ -8,6 +8,8 @@ investigate before updating.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from fca.ingestion.extract import extract_geometry, read_dxf
@@ -16,7 +18,15 @@ from fca.model.schema import Category
 
 from .conftest import REFERENCE_DIR, REPO_ROOT
 
-DXF = REFERENCE_DIR / "Architectural_plans_as_built.dxf"
+
+def _find_reference() -> Path:
+    for name in ("Architectural_plans_as_built.dxf", "Architectural plans as built.dxf"):
+        if (REFERENCE_DIR / name).is_file():
+            return REFERENCE_DIR / name
+    return REFERENCE_DIR / "Architectural_plans_as_built.dxf"
+
+
+DXF = _find_reference()
 
 pytestmark = [
     pytest.mark.reference,
@@ -50,3 +60,29 @@ def test_key_rooms_found(geometry):
 
 def test_units_warning_raised(geometry):
     assert any("millimetres" in w for w in geometry.warnings)
+
+
+def test_build_3d_structure(tmp_path):
+    import json
+
+    from fca.pipeline import build_3d
+
+    result = build_3d(DXF, REPO_ROOT / "config" / "plants" / "ref-plant-01.toml", tmp_path)
+    assert result.alignment_offset == pytest.approx((-1.37, 74.47), abs=0.01)
+    lay = result.layout
+    assert len(lay.frame_x) == 9
+    assert lay.frame_x[-1] - lay.frame_x[0] == pytest.approx(73.76, abs=0.01)
+    assert lay.north_y - lay.south_y == pytest.approx(39.27, abs=0.01)
+    # Outer column rows must sit inside the building's south and north walls.
+    b = geometry_bbox()
+    assert b.ymin < lay.south_y < b.ymin + 0.6
+    assert b.ymax - 0.6 < lay.north_y < b.ymax
+    assert result.member_schedule["column"]["count"] == 18
+    report = json.loads(result.report.read_text())
+    assert report["sizes_indicative"] is True
+    assert result.glb.stat().st_size > 50_000
+
+
+def geometry_bbox():
+    config = load_config(REPO_ROOT / "config" / "plants" / "ref-plant-01.toml")
+    return config.building
