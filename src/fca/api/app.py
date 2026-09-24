@@ -180,15 +180,21 @@ def create_app(
 
         project = get_project(project_id)
         out = store.outputs(project_id)
+        info = {
+            "name": project.name,
+            "country": project.country,
+            "city": project.city,
+            "plant_type_label": PLANT_TYPE_LABELS[project.plant_type],
+        }
         if project.mode == "brief":
             if not project.brief:
                 raise HTTPException(409, "Fill in the brief before building the model")
-            job, args = build_concept, (project.brief, out, "model")
+            job, args = build_concept, (project.brief, out, "model", info)
         else:
             if not project.drawing or not project.drawing.dxf_filename:
                 raise HTTPException(409, "Upload a drawing before building the model")
             dxf = store.uploads(project_id) / project.drawing.dxf_filename
-            job, args = build_3d, (dxf, configs / f"{project.config}.toml", out, "model")
+            job, args = build_3d, (dxf, configs / f"{project.config}.toml", out, "model", info)
         started, t0 = now(), time.perf_counter()
         try:
             result = await run_in_threadpool(job, *args)
@@ -225,6 +231,23 @@ def create_app(
     @app.get("/api/projects/{project_id}/labels")
     def model_labels(project_id: str) -> FileResponse:
         return output_file(project_id, "model.labels.json", "application/json")
+
+    @app.get("/api/projects/{project_id}/boq")
+    def boq(project_id: str) -> FileResponse:
+        return output_file(project_id, "model.boq.json", "application/json")
+
+    @app.get("/api/projects/{project_id}/boq.xlsx")
+    def boq_xlsx(project_id: str) -> FileResponse:
+        resp = output_file(
+            project_id,
+            "model.boq.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        project = get_project(project_id)
+        resp.headers["Content-Disposition"] = (
+            f'attachment; filename="{safe_filename(project.name)}_BOQ.xlsx"'
+        )
+        return resp
 
     @app.get("/api/projects/{project_id}/viewer.html")
     def standalone_viewer(project_id: str) -> FileResponse:

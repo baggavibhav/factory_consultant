@@ -22,6 +22,17 @@ export interface Facts {
   plot_m?: [number, number];
   program?: ProgramRoom[];
   assumptions?: string[];
+  quantities?: { steel_t: number; concrete_m3: number; roof_m2: number; wall_m2: number; items: number };
+  mep?: Record<string, Record<string, number>>;
+}
+export interface BoqItem { section: string; description: string; unit: string; qty: number; spec: string; basis: string; material: string; waste: number }
+export interface BomLine { material: string; unit: string; qty: number; waste: number; spec: string; section: string }
+export interface Boq {
+  currency: string;
+  sections: { name: string; items: BoqItem[] }[];
+  bom: BomLine[];
+  headline: { steel_t: number; concrete_m3: number; roof_m2: number; wall_m2: number; items: number };
+  mep: Record<string, Record<string, number>>;
 }
 export interface ProgramRoom { name: string; category: string; area_m2: number; temp_c: number | null; width_m: number; depth_m: number }
 export interface Brief {
@@ -103,5 +114,7 @@ export const api = {
   build: (id: string) => request<Project>(`/api/projects/${id}/builds`, { method: "POST" }),
   labels: (id: string) => request<Label[]>(`/api/projects/${id}/labels`),
   modelUrl: (id: string, build?: string) => `/api/projects/${id}/model.glb${build ? `?b=${build}` : ""}`,
+  boq: (id: string) => request<Boq>(`/api/projects/${id}/boq`),
+  boqXlsxUrl: (id: string) => `/api/projects/${id}/boq.xlsx`,
   viewerUrl: (id: string) => `/api/projects/${id}/viewer.html`,
 };

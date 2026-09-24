@@ -7,9 +7,10 @@ import type { Label } from "../lib/api";
 
 export type LayerKey =
   | "zones" | "roof" | "external" | "internal" | "cold" | "mezz" | "site"
-  | "frames" | "secondary" | "bracing" | "foundations";
+  | "frames" | "secondary" | "bracing" | "foundations"
+  | "electrical" | "water" | "drainage" | "fire" | "hvac" | "air" | "gas";
 
-export const LAYERS: { key: LayerKey; label: string; group: "Architecture" | "Structure"; swatch: string; nodes: string[] }[] = [
+export const LAYERS: { key: LayerKey; label: string; group: "Architecture" | "Structure" | "Services"; swatch: string; nodes: string[] }[] = [
   { key: "zones", label: "Floor zones", group: "Architecture", swatch: "#f2d48c", nodes: ["zone_production", "zone_storage", "zone_cold", "zone_dispatch", "zone_office", "zone_amenity", "zone_utility"] },
   { key: "roof", label: "Roof sheeting", group: "Architecture", swatch: "#9aa3ad", nodes: ["roof"] },
   { key: "external", label: "External walls", group: "Architecture", swatch: "#d6cfbf", nodes: ["walls_external"] },
@@ -21,9 +22,17 @@ export const LAYERS: { key: LayerKey; label: string; group: "Architecture" | "St
   { key: "secondary", label: "Purlins and girts", group: "Structure", swatch: "#5a7899", nodes: ["str_purlin", "str_girt"] },
   { key: "bracing", label: "Bracing", group: "Structure", swatch: "#33383f", nodes: ["str_bracing"] },
   { key: "foundations", label: "Foundation pads", group: "Structure", swatch: "#9e9e99", nodes: ["str_foundation"] },
+  { key: "electrical", label: "Electrical", group: "Services", swatch: "#edb30d", nodes: ["mep_electrical"] },
+  { key: "water", label: "Water supply", group: "Services", swatch: "#2e87de", nodes: ["mep_water"] },
+  { key: "drainage", label: "Drainage", group: "Services", swatch: "#735433", nodes: ["mep_drainage"] },
+  { key: "fire", label: "Fire protection", group: "Services", swatch: "#d63030", nodes: ["mep_fire"] },
+  { key: "hvac", label: "Refrigeration and ventilation", group: "Services", swatch: "#009e9e", nodes: ["mep_hvac"] },
+  { key: "air", label: "Compressed air", group: "Services", swatch: "#738599", nodes: ["mep_air"] },
+  { key: "gas", label: "Gas", group: "Services", swatch: "#f28019", nodes: ["mep_gas"] },
 ];
+export const SERVICE_KEYS: LayerKey[] = ["electrical", "water", "drainage", "fire", "hvac", "air", "gas"];
 
-export type ViewName = "iso" | "structure" | "plan" | "street" | "inside";
+export type ViewName = "iso" | "structure" | "services" | "plan" | "street" | "inside";
 const WALL_NODES = ["walls_external", "walls_internal", "cold_panels", "outbuildings"];
 
 interface Props {
@@ -40,6 +49,7 @@ function views(w: number, d: number): Record<ViewName, { p: number[]; t: number[
   return {
     iso: { p: [-w * 0.95, w * 0.7, d * 2.0], t: [0, 0, 0] },
     structure: { p: [-w * 0.85, w * 0.55, d * 1.75], t: [0, 3, 0] },
+    services: { p: [-w * 0.6, w * 0.6, d * 1.9], t: [0, 0, d * 0.1] },
     plan: { p: [0, w * 1.45, 0.01], t: [0, 0, 0] },
     street: { p: [-w * 0.1, 6, d * 1.6], t: [0, 4, 0] },
     inside: { p: [-w * 0.2, 3, d * 0.07], t: [-w * 0.47, 3.2, -d * 0.33] },
@@ -229,7 +239,7 @@ export default function Viewer3D({ url, labels, size, layers, xray, showLabels, 
       mat.needsUpdate = true;
     }
     if (st.edge) st.edge.opacity = xray ? 0.06 : 0.3;
-    const see = layers.foundations;
+    const see = layers.foundations || layers.drainage || layers.fire;
     if (st.ground) { st.ground.opacity = see ? 0.35 : 1; st.ground.depthWrite = !see; }
     const slab = st.nodes.floor_slab;
     if (slab) {

@@ -6,29 +6,32 @@ import {
 import { api, ApiError, type Brief, type Label, type Project } from "../lib/api";
 import { MEMBER_NAMES, PLANT_TYPE, ZONE_COLOURS, bytes, dec, int, sqft, stamp, statusOf } from "../lib/format";
 import BriefForm from "../components/BriefForm";
+import BoqView from "../components/BoqView";
 import { PlantIcon } from "../components/Brand";
 import { useToast } from "../components/Toasts";
-import Viewer3D, { LAYERS, type LayerKey, type ViewName } from "../components/Viewer3D";
+import Viewer3D, { LAYERS, SERVICE_KEYS, type LayerKey, type ViewName } from "../components/Viewer3D";
 
 type Tab = "overview" | "program" | "layers" | "structure" | "files" | "activity";
 const BUILD_STEPS = ["Reading the drawing", "Aligning the column grid", "Generating the structure", "Exporting the 3D model"];
 const CONCEPT_STEPS = ["Sizing the building", "Laying out the zones", "Generating the structure", "Exporting the 3D model"];
-const VIEWS: { key: ViewName; label: string }[] = [
+const VIEWS: { key: ViewName; label: string; concept?: boolean }[] = [
   { key: "iso", label: "3D" },
   { key: "structure", label: "Structure" },
+  { key: "services", label: "Services", concept: true },
   { key: "plan", label: "Plan" },
   { key: "street", label: "Street" },
   { key: "inside", label: "Inside" },
 ];
-const DEFAULT_LAYERS = Object.fromEntries(LAYERS.map((l) => [l.key, l.key !== "foundations"])) as Record<LayerKey, boolean>;
+const DEFAULT_LAYERS = Object.fromEntries(LAYERS.map((l) => [l.key, l.group !== "Services" && l.key !== "foundations"])) as Record<LayerKey, boolean>;
+const allServices = (on: boolean) => Object.fromEntries(SERVICE_KEYS.map((k) => [k, on])) as Partial<Record<LayerKey, boolean>>;
 
-function Steps({ project }: { project: Project }) {
+function Steps({ project, panel, setPanel }: { project: Project; panel: "model" | "quantities"; setPanel: (p: "model" | "quantities") => void }) {
   const hasDrawing = project.mode === "brief" ? !!project.brief : !!project.drawing;
   const hasModel = project.status === "model_ready";
   const items = [
     { label: project.mode === "brief" ? "Brief" : "Drawing", done: hasDrawing, current: !hasDrawing },
     { label: project.mode === "brief" ? "Concept layout and structure" : "3D model and structure", done: hasModel, current: hasDrawing && !hasModel },
-    { label: "Quantities", later: "v0.7" },
+    { label: "Quantities and BOQ", done: hasModel && !!project.latest_build?.facts.quantities },
     { label: "Cost estimate", later: "v0.8" },
   ];
   return (
@@ -40,6 +43,14 @@ function Steps({ project }: { project: Project }) {
           {s.later && <span className="later">{s.later}</span>}
         </li>
       ))}
+      {hasModel && (
+        <li className="stage-switch">
+          <div className="seg" role="group" aria-label="Show">
+            <button aria-pressed={panel === "model"} onClick={() => setPanel("model")}>3D model</button>
+            <button aria-pressed={panel === "quantities"} onClick={() => setPanel("quantities")}>Quantities</button>
+          </div>
+        </li>
+      )}
     </ol>
   );
 }
@@ -129,6 +140,7 @@ export default function ProjectPage() {
   const [building, setBuilding] = useState(false);
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [editingBrief, setEditingBrief] = useState(false);
+  const [panel, setPanel] = useState<"model" | "quantities">("model");
   const [xray, setXray] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [view, setView] = useState<ViewName>("iso");
@@ -195,9 +207,10 @@ export default function ProjectPage() {
 
   function chooseView(v: ViewName) {
     setView(v);
-    if (v === "structure") { setXray(true); setShowLabels(false); setLayers((l) => ({ ...l, roof: false, foundations: true })); }
+    if (v === "structure") { setXray(true); setShowLabels(false); setLayers((l) => ({ ...l, roof: false, foundations: true, ...allServices(false) })); }
+    else if (v === "services") { setXray(true); setShowLabels(false); setLayers((l) => ({ ...l, roof: false, foundations: false, secondary: false, bracing: false, ...allServices(true) })); }
     else if (v === "inside") { setXray(false); setShowLabels(false); setLayers((l) => ({ ...l, roof: true, foundations: false })); }
-    else { setXray(false); setLayers((l) => ({ ...l, roof: v !== "plan", foundations: false })); }
+    else { setXray(false); setLayers((l) => ({ ...l, roof: v !== "plan", foundations: false, secondary: true, bracing: true, ...allServices(false) })); }
   }
 
   async function remove() {
@@ -244,7 +257,8 @@ export default function ProjectPage() {
           </div>
         </div>
         <div className="ws-actions">
-          {ready && <a className="btn" href={api.viewerUrl(id)}><Download size={16} /> Download viewer</a>}
+          {ready && f?.quantities && <a className="btn" href={api.boqXlsxUrl(id)}><Download size={16} /> BOQ (Excel)</a>}
+          {ready && <a className="btn" href={api.viewerUrl(id)}><Download size={16} /> 3D viewer</a>}
           {concept && ready && !editingBrief && (
             <button className="btn" onClick={() => setEditingBrief(true)} disabled={building}><Pencil size={16} /> Edit brief</button>
           )}
@@ -257,7 +271,7 @@ export default function ProjectPage() {
         </div>
       </header>
 
-      <Steps project={project} />
+      <Steps project={project} panel={panel} setPanel={setPanel} />
 
       <div className="ws-body">
         <section className="stage" aria-label="3D model">
@@ -269,12 +283,13 @@ export default function ProjectPage() {
               </div>
             ) :
             !concept && (!project.drawing || uploading) ? <Dropzone onFile={upload} busy={uploading} /> :
+            ready && panel === "quantities" ? <BoqView projectId={id} buildId={b!.id} concept={concept} onRebuild={build} /> :
             !ready ? <ReadyToBuild project={project} onBuild={build} /> :
             <>
               <Viewer3D url={api.modelUrl(id, b!.id)} labels={labels} size={f!.building_m} layers={layers} xray={xray} showLabels={showLabels} view={view} />
               <div className="v-top">
                 <div className="v-seg" role="group" aria-label="Camera view">
-                  {VIEWS.map((v) => <button key={v.key} aria-pressed={view === v.key} onClick={() => chooseView(v.key)}>{v.label}</button>)}
+                  {VIEWS.filter((v) => !v.concept || concept).map((v) => <button key={v.key} aria-pressed={view === v.key} onClick={() => chooseView(v.key)}>{v.label}</button>)}
                 </div>
                 <div className="v-seg" role="group" aria-label="Display">
                   <button aria-pressed={xray} onClick={() => setXray(!xray)}>X-ray walls</button>
@@ -380,7 +395,7 @@ export default function ProjectPage() {
             {tab === "layers" && (
               ready ? (
                 <>
-                  {(["Architecture", "Structure"] as const).map((g) => (
+                  {(concept ? (["Architecture", "Structure", "Services"] as const) : (["Architecture", "Structure"] as const)).map((g) => (
                     <div className="section" key={g}>
                       <h3 className="section-title">{g}</h3>
                       {LAYERS.filter((l) => l.group === g).map((l) => (
@@ -394,10 +409,12 @@ export default function ProjectPage() {
                       ))}
                     </div>
                   ))}
-                  <div className="section">
-                    <h3 className="section-title">Coming in v0.6</h3>
-                    <p className="muted" style={{ fontSize: 13, margin: 0 }}>Electrical, water, drainage, fire, refrigeration and gas layers.</p>
-                  </div>
+                  {!concept && (
+                    <div className="section">
+                      <h3 className="section-title">Services</h3>
+                      <p className="muted" style={{ fontSize: 13, margin: 0 }}>MEP layers are generated for concept projects. For drawings they need room outlines, which is planned.</p>
+                    </div>
+                  )}
                 </>
               ) : <p className="muted" style={{ marginTop: 0 }}><Layers3 size={16} style={{ verticalAlign: "-3px" }} /> Layers appear once the model is built.</p>
             )}

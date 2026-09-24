@@ -3,7 +3,7 @@
 Switz Group agent that turns a plant brief and drawings into a 3D plant model,
 BOM/BOQ, an inflation-adjusted cost estimate, and a contractor recommendation.
 
-**Current stage (v0.4.0):** web app; plants from a drawing or from a brief.
+**Current stage (v0.5.0):** web app; plants from a drawing or a brief; MEP concept layers; quantities, BOQ (Excel) and BOM.
 
 - Ingestion: convert AutoCAD DWG to DXF (with automatic repair), extract walls,
   cold-room panels, openings and room labels.
@@ -14,6 +14,11 @@ BOM/BOQ, an inflation-adjusted cost estimate, and a contractor recommendation.
 - Start from a brief (no drawing): enter the built-up area (m² or sq ft) and
   whatever else is known; get a space program, a concept layout in process-flow
   order, the steel structure and the 3D model. Every default used is listed.
+- MEP (concept projects): electrical, water, drainage, fire, refrigeration and
+  ventilation, compressed air and gas, laid out by rule and shown as 3D layers.
+- Quantities: every build measures a BOQ (13 trade sections, with specification and
+  basis per item) and a bill of materials, downloadable as a tender-style Excel file
+  with rate cells, live totals and contingency.
 - Web app: create projects, upload drawings, build and explore the 3D model with
   layers, camera views and the member schedule, in light or dark mode.
 - 3D: export a glTF model (`.glb`, opens in Windows 3D Viewer, Blender, etc.) and
@@ -112,6 +117,12 @@ zone proportions, building depth and bay spacing, setbacks, office and amenity
 sizing. They are plain text so engineering can tune them to Switz standards;
 changes take effect on the next build and are tracked in git.
 
+## Material specifications
+
+`config/specs/default.toml` defines the grade and product used for every BOQ
+item (concrete, steel sections, panels, cables, pipes, equipment). Edit it to
+match Switz standards; the next build uses the new specifications.
+
 ## Troubleshooting
 
 - **`fca` is not recognized / `No module named ...`**: the virtual environment
@@ -136,7 +147,9 @@ src/fca/model/        data contracts (schema) and building settings (levels, roo
 src/fca/structure/    column grid alignment and portal-frame generation
 src/fca/model3d/      glTF model builder
 src/fca/viewer/       offline HTML viewer (three.js, MIT, vendored)
-src/fca/concept/      brief, space program and concept layout
+src/fca/concept/      brief, space program, concept layout and MEP
+src/fca/quantities/   quantity takeoff, BOM and Excel BOQ
+config/specs/         material specification library (TOML)
 config/templates/     design rules per plant type (TOML)
 src/fca/pipeline.py   end-to-end build used by the CLI, API and (later) the agents
 src/fca/api/          FastAPI app: projects, uploads, builds, model files

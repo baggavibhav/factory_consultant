@@ -1,0 +1,98 @@
+# Default material and product specifications for Switz plants (Gulf region).
+# Typical good-practice grades for food factories; confirm with the project's
+# structural and MEP engineers and local authority requirements before tender.
+# Each key is used by the quantity takeoff; edit freely, changes apply on rebuild.
+name = "Switz default specification (Gulf, food factory)"
+
+[concrete]
+foundations = "C32/40 sulphate-resisting cement concrete, max w/c 0.45 (aggressive Gulf soils)"
+slab = "C30/37 ground-bearing slab, 200 mm, with polypropylene fibres"
+blinding = "C15 blinding, 75 mm"
+rebar = "Deformed high-yield rebar, ASTM A615 Grade 60 (or B500B)"
+mesh = "Welded steel fabric A393, two layers"
+rebar_kg_per_m3_pads = 80
+dpm = "1000-gauge polyethylene damp-proof membrane"
+
+[steel]
+grade = "Structural steel S355JR (EN 10025-2), hot-dip galvanised or two-coat epoxy primer + finish"
+secondary = "Cold-formed galvanised Z-sections, S450GD+Z275"
+bolts = "Grade 8.8 HDG bolts"
+connection_allowance = 0.10   # add 10% for plates, bolts and connections
+
+[steel.profiles]              # member kind = [indicative section, kg per metre]
+column = ["UB 457x191x74", 74.3]
+gable_column = ["UB 305x165x40", 40.3]
+rafter = ["UB 533x210x92", 92.1]
+eave_beam = ["UB 305x165x40", 40.3]
+purlin = ["Z200 x 2.0 mm", 5.8]
+girt = ["Z200 x 2.0 mm", 5.8]
+bracing = ["Rod M24 with turnbuckle", 3.6]
+
+[envelope]
+roof = "Insulated sandwich roof panel, PIR core 100 mm, 0.5 mm pre-painted steel skins, U ≤ 0.25"
+walls = "Insulated sandwich wall panel, PIR core 80 mm, food-safe finish inside, U ≤ 0.30"
+flashing = "Pre-painted steel flashings, 0.5 mm"
+gutters = "Galvanised steel box gutter, 0.9 mm, insulated"
+downpipes = "uPVC downpipe 150 mm"
+
+[internal]
+partition_high = "Insulated sandwich partition, PIR 80 mm, food-grade PVC or steel finish, hygienic coving"
+partition_low = "Blockwork 200 mm, plastered and painted, or sandwich partition in hygiene areas"
+cold_panel_chill = "Cold-room panel, PUR/PIR 100 mm, cam-lock joints, food-grade finish"
+cold_panel_freezer = "Cold-room panel, PUR/PIR 150 mm, heated door frames"
+cold_panel_blast = "Cold-room panel, PUR/PIR 200 mm, heated floor and door frames"
+freezer_floor = "Insulated floor: XPS 150 mm, vapour barrier, heating mat, 150 mm wearing slab"
+mezzanine = "Composite steel deck mezzanine, 130 mm slab on steel beams"
+
+[finishes]
+production = "Polyurethane cement floor, 9 mm, slip-resistant, with coved skirting"
+storage = "Power-floated concrete with surface hardener and sealer"
+cold = "Polyurethane cement floor, low-temperature grade, 6 mm"
+dispatch = "Power-floated concrete with hardener, heavy-duty"
+office = "Porcelain floor tiles 600x600"
+amenity = "Anti-slip porcelain tiles, R11"
+utility = "Power-floated concrete, sealed"
+
+[electrical]
+transformer = "Oil-immersed distribution transformer, 13.8/0.4 kV, utility-approved"
+generator = "Diesel standby generator, prime-rated, with ATS"
+main_panel = "Main LV switchboard, Form 4 type 2, IP54"
+db = "Distribution board, IP65 in production and wash-down areas"
+cable_tray = "Hot-dip galvanised heavy-duty cable tray / ladder 300 mm"
+feeder_cable = "XLPE/SWA/PVC copper cable, 4-core, sized to load"
+light_highbay = "LED high-bay, IP65, food-safe (shatterproof), 20,000 lm"
+light_panel = "LED panel 600x600, 4,000 lm"
+light_cold = "LED low-temperature luminaire, IP66, rated -40 °C"
+
+[plumbing]
+tank = "GRP sectional water tank, WRAS-approved, underground or on plinth"
+pump = "Duty/standby booster pump set with VFD"
+pipe = "PP-R PN20 pressure pipe (cold), PP-R fibre PN20 (hot)"
+outlet = "Hands-free hand-wash stations and sanitary fittings, stainless steel in production"
+
+[drainage]
+pipe = "uPVC or HDPE gravity drainage pipe, SN8"
+floor_drain = "Stainless steel hygienic floor gully 304/316 with trap and removable basket"
+chamber = "Precast concrete inspection chamber with ductile iron cover"
+grease_trap = "Precast/GRP grease interceptor sized for bakery effluent"
+
+[fire]
+tank = "Fire water tank (GRP or concrete) sized to authority requirement"
+pump = "Fire pump set: electric duty, diesel standby, jockey pump (NFPA 20)"
+ring_main = "HDPE PE100 underground fire main, 150 mm"
+hydrant = "Pillar hydrant with two landing valves"
+sprinkler = "Upright sprinklers, K80, 68 °C, on black steel pipework (NFPA 13)"
+detector = "Addressable smoke/heat detector"
+
+[hvac]
+condensing_unit = "Air-cooled condensing unit, CO2 or low-GWP refrigerant, for 46 °C ambient"
+evaporator = "Unit cooler with electric or hot-gas defrost"
+extract_fan = "Roof extract fan for oven heat, stainless steel"
+
+[air]
+compressor = "Oil-free rotary screw compressor with dryer (food contact air, ISO 8573-1 class 1.2.1)"
+pipe = "Aluminium compressed-air ring main, 40 mm"
+
+[gas]
+tank = "Underground LPG tank with vaporiser, authority-approved"
+pipe = "Seamless steel gas pipe, welded, painted yellow, 50 mm"

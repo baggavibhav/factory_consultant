@@ -35,6 +35,13 @@ MATERIALS: dict[str, tuple[tuple[float, float, float, float], float, float]] = {
     "zone_office": ((0.78, 0.76, 0.90, 1.0), 0.0, 0.9),
     "zone_amenity": ((0.90, 0.78, 0.86, 1.0), 0.0, 0.9),
     "zone_utility": ((0.75, 0.75, 0.73, 1.0), 0.0, 0.9),
+    "mep_electrical": ((0.93, 0.70, 0.05, 1.0), 0.3, 0.5),
+    "mep_water": ((0.18, 0.53, 0.87, 1.0), 0.3, 0.4),
+    "mep_drainage": ((0.45, 0.33, 0.20, 1.0), 0.1, 0.7),
+    "mep_fire": ((0.84, 0.19, 0.19, 1.0), 0.3, 0.4),
+    "mep_hvac": ((0.00, 0.62, 0.62, 1.0), 0.3, 0.4),
+    "mep_air": ((0.45, 0.52, 0.60, 1.0), 0.5, 0.4),
+    "mep_gas": ((0.95, 0.50, 0.10, 1.0), 0.3, 0.4),
     "str_foundation": ((0.62, 0.62, 0.60, 1.0), 0.0, 0.95),
     "str_column": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
     "str_gable_column": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
@@ -120,10 +127,10 @@ class ModelBuilder:
         cfg, env, h = self.cfg, self.cfg.envelope, self.cfg.heights
         ffl = cfg.levels.ffl
         for s in geometry.segments:
-            name, z0, top_a, top_b = self._classify(s, env, h, ffl)
+            name, z0, top_a, top_b = self.classify(s, env, h, ffl)
             self.wall(name, s.x1, s.y1, s.x2, s.y2, z0, top_a, top_b)
 
-    def _classify(self, s: Segment, env: BBox, h, ffl: float):
+    def classify(self, s: Segment, env: BBox, h, ffl: float):
         cfg = self.cfg
         if s.category == Category.BOUNDARY:
             return "boundary_wall", 0.0, h.boundary, h.boundary
@@ -197,6 +204,26 @@ class ModelBuilder:
             rect.ymax - inset,
             z + 0.03,
         )
+
+    def add_mep(self, mep) -> None:
+        """Concept MEP: routes as thin members, equipment and fittings as boxes."""
+        for r in mep.routes:
+            tray = "tray" in r.kind.lower()
+            w = 0.3 if tray else max(r.size_mm / 1000, 0.06)
+            d = 0.08 if tray else w
+            for a, b in zip(r.points, r.points[1:], strict=False):
+                self.member(f"mep_{r.service}", Member(r.service, a, b, w, d))
+        for it in mep.items:
+            (x, y, z), (w, d, h) = it.at, it.size
+            self.box(
+                f"mep_{it.service}",
+                x - w / 2,
+                y - d / 2,
+                z - h / 2,
+                x + w / 2,
+                y + d / 2,
+                z + h / 2,
+            )
 
     def add_structure(self, members: list[Member]) -> None:
         for m in members:

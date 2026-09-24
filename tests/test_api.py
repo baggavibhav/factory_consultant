@@ -141,6 +141,32 @@ def test_brief_defaults(client):
 
 
 def test_summary_reports_mode(client):
-    client.post("/api/projects", json={"name": "Brief one", "plant_type": "retail",
-                                       "country": "Oman", "mode": "brief"})
+    client.post(
+        "/api/projects",
+        json={"name": "Brief one", "plant_type": "retail", "country": "Oman", "mode": "brief"},
+    )
     assert client.get("/api/projects").json()[0]["mode"] == "brief"
+
+
+def test_concept_build_produces_boq(client):
+    pid = client.post(
+        "/api/projects",
+        json={
+            "name": "BOQ test",
+            "plant_type": "industrial",
+            "country": "Saudi Arabia",
+            "mode": "brief",
+        },
+    ).json()["id"]
+    client.put(
+        f"/api/projects/{pid}/brief", json={"plant_type": "industrial", "built_up_area_m2": 3000}
+    )
+    built = client.post(f"/api/projects/{pid}/builds").json()
+    assert built["latest_build"]["facts"]["quantities"]["steel_t"] > 30
+    boq = client.get(f"/api/projects/{pid}/boq").json()
+    assert boq["currency"] == "SAR"
+    names = [s["name"] for s in boq["sections"]]
+    assert names[0] == "Substructure" and "Electrical" in names and "Drainage" in names
+    xlsx = client.get(f"/api/projects/{pid}/boq.xlsx")
+    assert xlsx.status_code == 200 and xlsx.content[:2] == b"PK"
+    assert "BOQ_test_BOQ.xlsx" in xlsx.headers["content-disposition"]

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0 — 24 Sep 2026
+### Added
+- Concept MEP: electrical (supply, substation, generator, LV board, distribution boards, trays,
+  feeders, lighting by lux), water (tank, pumps, mains, outlets), drainage (gullies, branches,
+  collectors, chambers, grease trap, sewer), fire (tank, pumps, hydrant ring, hydrants,
+  sprinklers, detectors), refrigeration and ventilation, compressed air, gas. 3D layers and a
+  Services view.
+- Quantity takeoff for concept and drawing projects: substructure, steel (tonnage by member),
+  envelope, partitions, cold rooms, mezzanine, finishes, external works, MEP.
+- Material specification library `config/specs/default.toml`.
+- BOQ and BOM in the web app (search, by-trade and by-material views) and as Excel: Summary with
+  section totals and contingency, BOQ with rate cells and formulas, BOM with waste allowance,
+  Design basis and assumptions.
+### Fixed
+- Cold-room outlines no longer counted twice (as partitions and as cold-room panels).
+- Builds from older versions offer a rebuild instead of a broken BOQ download.
+
 ## 0.4.0 — 24 Sep 2026
 ### Added
 - Start from a brief: new projects choose "From a brief" or "From a drawing".

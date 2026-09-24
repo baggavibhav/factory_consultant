@@ -70,8 +70,79 @@ def _labels(geometry, cfg: BuildingConfig, builder) -> list[dict]:
     return chosen
 
 
+PLANT_LABELS = {
+    "industrial": "Industrial manufacturing",
+    "retail": "Retail manufacturing",
+    "egg_station": "Egg station",
+}
+
+
+def _write_quantities(
+    out_dir: Path,
+    name: str,
+    items,
+    project: dict,
+    assumptions: list[str],
+    design: dict,
+    mep_facts: dict | None,
+) -> dict:
+    """Write BOQ/BOM as JSON (for the web app) and Excel (for tender); return headline totals."""
+    from fca.quantities.excel import CURRENCY, write_boq_xlsx
+    from fca.quantities.takeoff import SECTIONS, as_dicts, bill_of_materials
+
+    bom = bill_of_materials(items)
+    write_boq_xlsx(out_dir / f"{name}.boq.xlsx", items, bom, project, assumptions, design)
+
+    def total(section: str, unit: str) -> float:
+        return round(sum(i.qty for i in items if i.section == section and i.unit == unit), 1)
+
+    headline = {
+        "steel_t": total("Structural steel frame", "t"),
+        "concrete_m3": round(
+            sum(i.qty for i in items if i.unit == "m³" and "xcavat" not in i.description), 1
+        ),
+        "roof_m2": round(sum(i.qty for i in items if "roof panels" in i.description), 1),
+        "wall_m2": round(sum(i.qty for i in items if "cladding" in i.description), 1),
+        "items": len(items),
+    }
+    data = {
+        "currency": CURRENCY.get(project.get("country", ""), "USD"),
+        "sections": [
+            {"name": s, "items": [d for d in as_dicts(items) if d["section"] == s]}
+            for s in SECTIONS
+            if any(i.section == s for i in items)
+        ],
+        "bom": bom,
+        "headline": headline,
+        "mep": mep_facts or {},
+    }
+    (out_dir / f"{name}.boq.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
+    return headline
+
+
+def _design_basis(facts: dict) -> dict:
+    lv = facts["levels"]
+    return {
+        "Building": {
+            "Size": f"{facts['building_m'][0]} × {facts['building_m'][1]} m",
+            "Footprint": f"{facts['footprint_m2']:,} m²",
+            "Floor / eaves / ridge": f"+{lv['ffl']:.2f} / +{lv['eaves_south']:.2f} to "
+            f"+{lv['eaves_north']:.2f} / +{lv['ridge']:.2f} m",
+        },
+        "Structure": {
+            "Portal frames": f"{facts['frames']} frames, span {facts['span_m']} m",
+            "Bays": ", ".join(f"{b} m" for b in facts["bays_m"]),
+            "Member sizes": "Indicative typical sections, to be designed by a structural engineer",
+        },
+    }
+
+
 def build_3d(
-    plan_dxf: Path, config_path: Path, out_dir: Path, name: str | None = None
+    plan_dxf: Path,
+    config_path: Path,
+    out_dir: Path,
+    name: str | None = None,
+    project: dict | None = None,
 ) -> Build3DResult:
     """Drawing -> geometry -> structure -> glTF model + viewer + structure report."""
     plant = load_config(config_path)
@@ -121,6 +192,34 @@ def build_3d(
     report_path = out_dir / f"{name}.structure.json"
     report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
 
+    from fca.quantities.takeoff import takeoff
+
+    plot = None
+    bounds = [sg for sg in geometry.segments if sg.category.value == "boundary"]
+    if bounds:
+        from fca.model.schema import BBox
+
+        xs = [v for sg in bounds for v in (sg.x1, sg.x2)]
+        ys = [v for sg in bounds for v in (sg.y1, sg.y2)]
+        plot = BBox(xmin=min(xs), ymin=min(ys), xmax=max(xs), ymax=max(ys))
+    items = takeoff(cfg, members, geometry.segments, "drawing", plot=plot)
+    proj = {"name": name, "basis": f"Drawing {geometry.source_file}", **(project or {})}
+    facts["quantities"] = _write_quantities(
+        out_dir,
+        name,
+        items,
+        proj,
+        [
+            *warnings,
+            "Wall and panel areas from the drawing halve the two face lines drawn per "
+            "wall; openings are not deducted.",
+            "Finishes and MEP need room outlines; they are measured for concept projects.",
+        ],
+        _design_basis(facts),
+        None,
+    )
+    report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
+
     labels = _labels(geometry, cfg, builder)
     (out_dir / f"{name}.labels.json").write_text(json.dumps(labels, indent=1), encoding="utf-8")
 
@@ -131,12 +230,16 @@ def build_3d(
     )
 
 
-def build_concept(brief, out_dir: Path, name: str = "model") -> Build3DResult:
+def build_concept(
+    brief, out_dir: Path, name: str = "model", project: dict | None = None
+) -> Build3DResult:
     """Brief -> space program -> concept layout -> structure -> glTF + viewer + report."""
     from fca.concept.brief import resolve
     from fca.concept.layout import build_layout, max_area_on_plot
+    from fca.concept.mep import build_mep
     from fca.concept.program import build_program, load_template
     from fca.model.schema import Category, CategoryStats, PlantGeometry
+    from fca.quantities.takeoff import takeoff
 
     values, assumptions = resolve(brief)
     tpl = load_template(brief.plant_type)
@@ -166,6 +269,8 @@ def build_concept(brief, out_dir: Path, name: str = "model") -> Build3DResult:
     builder = build_model(cfg, geometry, members)
     for room in lay.rooms:
         builder.add_zone(room.category, room.rect)
+    mep = build_mep(lay, values, brief.plant_type)
+    builder.add_mep(mep)
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -214,6 +319,24 @@ def build_concept(brief, out_dir: Path, name: str = "model") -> Build3DResult:
         "assumptions": assumptions,
         "warnings": warnings,
     }
+    items = takeoff(cfg, members, lay.segments, "concept", rooms=lay.rooms, mep=mep, plot=lay.plot)
+    proj = {
+        "name": name,
+        "basis": f"Concept design from brief ({tpl.name})",
+        "plant_type_label": PLANT_LABELS[brief.plant_type],
+        **(project or {}),
+    }
+    design = _design_basis(facts)
+    design["Site and brief"] = {
+        "Plot": f"{facts['plot_m'][0]} × {facts['plot_m'][1]} m",
+        "Template": tpl.name,
+    }
+    for service, vals in mep.facts.items():
+        design[f"MEP: {service}"] = {k.replace("_", " "): v for k, v in vals.items()}
+    facts["mep"] = mep.facts
+    facts["quantities"] = _write_quantities(
+        out_dir, name, items, proj, assumptions + warnings, design, mep.facts
+    )
     report_path = out_dir / f"{name}.structure.json"
     report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
 
