@@ -1,0 +1,33 @@
+# Reference plant #1: industrial bakery plant (as-built drawings).
+# Source: Architectural_plans_as_built.dwg
+name = "ref-plant-01"
+
+# The file header says millimetres, but this drawing is drawn at 1 unit = 1 m
+# (verified: plot boundary measures 100 x 50 units).
+unit_to_metre = 1.0
+
+# Ground floor plan area of the sheet (drawing units). Excludes the roof plan
+# and title block drawn elsewhere on the same sheet.
+[region]
+xmin = 100.0
+ymin = 145.0
+xmax = 212.0
+ymax = 202.0
+
+# Main building envelope measured from the wall layer.
+[building]
+xmin = 116.67
+ymin = 154.49
+xmax = 194.87
+ymax = 194.56
+
+[layers]
+wall = ["WALL"]
+cold_panel = ["A-REFRIGERATION PANEL 200"]
+boundary = ["A-BOUNDRY WALL"]
+door = ["A-DOOR-FULL"]
+window = ["A-WIN"]
+
+[labels]
+layers = ["A-TEXT-IN"]
+ignore = ["IN", "UP", "CH", "SH", "N E I G H B O R", "PLOT LIMIT"]

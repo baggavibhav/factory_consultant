@@ -1,0 +1,22 @@
+# Copy this file for each new drawing: config/plants/<plant-id>.toml
+# Run `fca inspect <file.dxf>` first to see which layers the drawing uses.
+name = "plant-id"
+unit_to_metre = 1.0     # 0.001 if the drawing is really in millimetres
+
+# Optional: restrict extraction to the plan area of the sheet (drawing units)
+# [region]
+# xmin = 0.0
+# ymin = 0.0
+# xmax = 100.0
+# ymax = 100.0
+
+[layers]
+wall = ["WALL"]
+cold_panel = []
+boundary = []
+door = []
+window = []
+
+[labels]
+layers = []
+ignore = []

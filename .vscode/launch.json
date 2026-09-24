@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "fca: extract reference plant",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "fca.cli",
+      "args": [
+        "extract",
+        "data/reference/Architectural_plans_as_built.dxf",
+        "-c", "config/plants/ref-plant-01.toml",
+        "-o", "outputs/ref-plant-01.geometry.json"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "pytest: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

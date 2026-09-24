@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Secrets
+.env
+
+# Project data: drawings, costs and generated outputs never go into git
+data/*
+!data/README.md
+outputs/
+
+# External tools downloaded by scripts/setup.ps1
+tools/
+
+# OS / editor
+Thumbs.db
+.DS_Store
