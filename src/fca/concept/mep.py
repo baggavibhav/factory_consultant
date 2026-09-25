@@ -166,6 +166,18 @@ def _grid(r: Room, count: int, z: float, margin: float = 1.5) -> list[Pt]:
     ][:count]
 
 
+def orthogonal(points: list[Pt]) -> list[Pt]:
+    """Insert corners so a run goes along x then y, like pipes and cables on site."""
+    out: list[Pt] = []
+    for p in points:
+        if out:
+            a = out[-1]
+            if abs(a[0] - p[0]) > 1e-6 and abs(a[1] - p[1]) > 1e-6:
+                out.append((p[0], a[1], a[2]))
+        out.append(p)
+    return out
+
+
 def _next(sizes: tuple[int, ...], value: float) -> int:
     return next((s for s in sizes if s >= value), sizes[-1])
 
@@ -343,6 +355,7 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         "Distribution main",
         [
             (pump_at[0], pump_at[1], 0.5),
+            (pump_at[0], strip_mid, 0.5),
             (b.xmin, strip_mid, 0.5),
             (b.xmin, strip_mid, main_z),
             (b.xmax - 2, strip_mid, main_z),
@@ -357,11 +370,23 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
             continue
         outlets += n
         top = eaves - 2.4 if r in hall else main_z
-        m.route(
-            "water", "Branch", [(cx, strip_mid, main_z), (cx, cy, top), (cx, cy, ffl + 1.1)], 32
-        )
-        for p in _grid(r, n, ffl + 0.9, margin=0.8):
-            m.item("water", "Outlet", p, (0.5, 0.4, 0.3))
+        raw = sorted(_grid(r, n, ffl + 0.9, margin=0.8), key=lambda q: (round(q[1], 1), q[0]))
+        rows: dict[float, list[Pt]] = {}
+        for q in raw:
+            rows.setdefault(round(q[1], 1), []).append(q)
+        pts = [
+            q
+            for i, (_, row) in enumerate(sorted(rows.items()))
+            for q in (row if i % 2 == 0 else row[::-1])
+        ]  # serpentine through the rows
+        # Tee off the main, drop into the room, then run past every outlet in turn.
+        chain = [(cx, strip_mid, main_z), (cx, cy, top)]
+        if pts:
+            chain += [(pts[0][0], pts[0][1], top)]
+            chain += [(q[0], q[1], ffl + 1.1) for q in pts]
+        m.route("water", "Cold water branch", orthogonal(chain), 32)
+        for q in pts:
+            m.item("water", "Outlet", q, (0.5, 0.4, 0.3))
     pipes = sum(rt.length for rt in m.routes if rt.service == "water")
     m.facts["water"] = {"tank_m3": tank_m3, "outlets": outlets}
     m.qty(
@@ -536,14 +561,6 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         "fire.sprinkler",
         "1 per 12 m² in storage and dispatch zones",
     )
-    m.qty(
-        "fire",
-        "Sprinkler pipework",
-        "m",
-        sprinklers * 3.6,
-        "fire.sprinkler",
-        "3.6 m of pipe per head (allowance)",
-    )
     m.qty("fire", "Fire alarm detectors", "nr", detectors, "fire.detector", "1 per 60 m² of floor")
 
     # ---------------- Refrigeration and ventilation ----------------
@@ -690,4 +707,8 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         m.qty(
             "gas", "Gas pipework 50 mm", "m", gr.length, "gas.pipe", "Tank to production (measured)"
         )
+
+    from fca.concept.routing import add_detailed_routes
+
+    add_detailed_routes(m, lay, values, plant_type)
     return m

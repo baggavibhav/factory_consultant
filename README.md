@@ -3,7 +3,7 @@
 Switz Group agent that turns a plant brief and drawings into a 3D plant model,
 BOM/BOQ, an inflation-adjusted cost estimate, and a contractor recommendation.
 
-**Current stage (v0.6.0):** web app; plants from a drawing or a brief; editable design options with change comparison; 2D plan view of rooms and services; rooms read from DWG drawings; MEP concept layers; quantities, BOQ (Excel) and BOM.
+**Current stage (v0.7.0):** detailed service routing to every fitting, plus web app; plants from a drawing or a brief; editable design options with change comparison; 2D plan view of rooms and services; rooms read from DWG drawings; MEP concept layers; quantities, BOQ (Excel) and BOM.
 
 - Ingestion: convert AutoCAD DWG to DXF (with automatic repair), extract walls,
   cold-room panels, openings and room labels.
@@ -21,6 +21,11 @@ BOM/BOQ, an inflation-adjusted cost estimate, and a contractor recommendation.
   one-service-at-a-time mode, lengths and sizes on hover, zoom and pan.
 - Rooms from drawings: room outlines and names are read from the DWG (door gaps closed;
   open-plan zones estimated), giving finishes and fittings per room.
+- Detailed routing (concept projects): lighting circuits along every row of luminaires,
+  socket circuits, process power to each line, fire alarm loop, cold and hot water to every
+  outlet, sprinkler pipework to every head, supply/extract/AC ductwork, air drops and gas
+  branches. All runs are orthogonal and measured into the BOQ. In the plan view, pick a
+  service, then a run type (e.g. lighting circuits) to see only those runs.
 - MEP (concept projects): electrical, water, drainage, fire, refrigeration and
   ventilation, compressed air and gas, laid out by rule and shown as 3D layers.
 - Quantities: every build measures a BOQ (13 trade sections, with specification and

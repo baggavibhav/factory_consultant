@@ -459,3 +459,10 @@ table.sched { width: 100%; border-collapse: collapse; font-size: 13px; }
 .zone-slider input { width: 100%; }
 .zone-slider .num { text-align: right; color: var(--ink-2); }
 @media (max-width: 900px) { .plan { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } .plan-panel { border-left: 0; border-top: 1px solid var(--line); max-height: 40%; } }
+
+/* ---------- v0.7: service runs ---------- */
+.kinds { display: grid; gap: 2px; }
+.kind { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; cursor: pointer; text-align: left; font-size: 12.5px; }
+.kind:hover { background: var(--surface-2); }
+.kind.on { background: var(--surface-3); font-weight: 600; }
+.kind .kn { flex: 1; }

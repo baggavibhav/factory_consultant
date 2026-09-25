@@ -256,7 +256,12 @@ class ModelBuilder:
         """Concept MEP: routes as thin members, equipment and fittings as boxes."""
         for r in mep.routes:
             tray = "tray" in r.kind.lower()
-            w = 0.4 if tray else max(r.size_mm / 1000 * 1.6, 0.14)  # drawn larger to be readable
+            if tray:
+                w = 0.4
+            elif r.size_mm >= 200:  # ducts at their real width
+                w = r.size_mm / 1000
+            else:  # pipes and cables drawn larger than life so they stay readable
+                w = max(r.size_mm / 1000 * 1.6, 0.1)
             d = 0.12 if tray else w
             for a, b in zip(r.points, r.points[1:], strict=False):
                 self.member(f"mep_{r.service}", Member(r.service, a, b, w, d))

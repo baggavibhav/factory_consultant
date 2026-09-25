@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0 — 25 Sep 2026
+### Added
+- Detailed service routing: lighting circuits per row of luminaires, socket outlets and
+  socket circuits per room, process power from the main LV board to each production line,
+  fire alarm panel and loop through every detector, point-of-use water heaters and hot water
+  runs, cold water through every outlet, sprinkler feed main, cross mains and range pipes to
+  every head, production air handling units with supply ducts and diffusers, toilet and
+  changing extract, ducted office AC, compressed-air drops and gas branches with valve trains.
+- BOQ items measured from these runs (cables, pipes, duct area, sockets, diffusers, units).
+- Plan view: per-service list of run types with counts and lengths; click to isolate one type.
+- `.gitattributes` to normalise line endings (removes the LF/CRLF warnings).
+### Changed
+- All chained runs are orthogonal (no diagonal pipes or cables).
+- Ducts drawn at real width in 3D.
+- Sprinkler pipework is now measured instead of an allowance per head.
+
 ## 0.6.0 — 24 Sep 2026
 ### Added
 - Design options in the brief (structure option, span, bay, roof pitch, goods-in yard, dispatch

@@ -22,6 +22,7 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
   const [error, setError] = useState<string | null>(null);
   const [on, setOn] = useState<Record<string, boolean>>({ rooms: true, names: true, columns: true, openings: true, electrical: true, water: false, drainage: false, fire: false, hvac: false, air: false, gas: false });
   const [solo, setSolo] = useState<string | null>(null);
+  const [kind, setKind] = useState<string | null>(null);
   const [tip, setTip] = useState<Tip>(null);
   const [view, setView] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const drag = useRef<{ px: number; py: number; vx: number; vy: number } | null>(null);
@@ -91,7 +92,7 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
           ))}
           {services.map((s) => shown(s.key) && (
             <g key={s.key}>
-              {plan.routes.filter((r) => r.service === s.key).map((r, i) => (
+              {plan.routes.filter((r) => r.service === s.key && (!kind || solo !== s.key || r.kind === kind)).map((r, i) => (
                 <polyline key={i} points={r.points.map((p) => p.join(",")).join(" ")} fill="none" stroke={s.colour}
                   strokeWidth={scale * (r.kind.toLowerCase().includes("tray") ? 4 : Math.max(1.6, r.size_mm / 40))}
                   strokeDasharray={r.underground ? `${scale * 6} ${scale * 3}` : undefined} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}
@@ -132,13 +133,33 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
             <div className="section-title" style={{ marginTop: 12 }}>Services <span className="subtle" style={{ fontWeight: 450 }}>click a name to show it alone</span></div>
             {services.map((s) => (
               <div className={`svc${solo === s.key ? " solo" : ""}`} key={s.key}>
-                <button className="svc-name" onClick={() => setSolo(solo === s.key ? null : s.key)} aria-pressed={solo === s.key}>
+                <button className="svc-name" onClick={() => { setSolo(solo === s.key ? null : s.key); setKind(null); }} aria-pressed={solo === s.key}>
                   <span className="svc-line" style={{ background: s.colour }} />{s.label}
                   <span className="subtle num">{int(routeLen(s.key))} m</span>
                 </button>
                 <span className="switch"><input type="checkbox" aria-label={`Show ${s.label}`} checked={!!on[s.key]} disabled={!!solo} onChange={(e) => setOn({ ...on, [s.key]: e.target.checked })} /><span /></span>
               </div>
             ))}
+            {solo && (() => {
+              const kinds = new Map<string, { n: number; m: number; size: number }>();
+              plan.routes.filter((r) => r.service === solo).forEach((r) => {
+                const k = kinds.get(r.kind) ?? { n: 0, m: 0, size: r.size_mm };
+                k.n += 1; k.m += r.length_m; kinds.set(r.kind, k);
+              });
+              const colour = SERVICES.find((x) => x.key === solo)?.colour;
+              return (
+                <div className="kinds">
+                  <div className="section-title" style={{ marginTop: 10 }}>{SERVICES.find((x) => x.key === solo)?.label} runs <span className="subtle" style={{ fontWeight: 450 }}>click to isolate</span></div>
+                  {[...kinds.entries()].sort((a, b) => b[1].m - a[1].m).map(([k, v]) => (
+                    <button key={k} className={`kind${kind === k ? " on" : ""}`} onClick={() => setKind(kind === k ? null : k)} aria-pressed={kind === k}>
+                      <span className="svc-line" style={{ background: colour, height: Math.max(2, Math.min(8, v.size / 40)) }} />
+                      <span className="kn">{k}{v.n > 1 && <span className="subtle"> × {v.n}</span>}</span>
+                      <span className="subtle num">{int(v.m)} m</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             <p className="subtle" style={{ fontSize: 12, margin: "10px 0 0" }}>Dashed lines run underground. Hover any line or item for its size and length.</p>
           </>
         ) : (

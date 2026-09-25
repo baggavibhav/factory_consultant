@@ -85,12 +85,18 @@ feeder_cable = "XLPE/SWA/PVC copper cable, 4-core, sized to load"
 light_highbay = "LED high-bay, IP65, food-safe (shatterproof), 20,000 lm"
 light_panel = "LED panel 600x600, 4,000 lm"
 light_cold = "LED low-temperature luminaire, IP66, rated -40 °C"
+lighting_cable = "LSZH copper cable 3 × 2.5 mm² in galvanised conduit or trunking"
+small_power_cable = "LSZH copper cable 3 × 4 mm² in galvanised conduit or trunking"
+socket = "Twin switched socket outlet 13 A; IP66 in production and wash-down areas"
+process_cable = "XLPE/SWA copper cable sized to line load (typically 4 × 70 mm²) on tray"
+isolator = "Line control panel / lockable isolator, IP65"
 
 [plumbing]
 tank = "GRP sectional water tank, WRAS-approved, underground or on plinth"
 pump = "Duty/standby booster pump set with VFD"
 pipe = "PP-R PN20 pressure pipe (cold), PP-R fibre PN20 (hot)"
 outlet = "Hands-free hand-wash stations and sanitary fittings, stainless steel in production"
+heater = "Electric storage water heater 80–100 L, with thermostatic mixing valve"
 
 [drainage]
 pipe = "uPVC or HDPE gravity drainage pipe, SN8"
@@ -105,16 +111,25 @@ ring_main = "HDPE PE100 underground fire main, 150 mm"
 hydrant = "Pillar hydrant with two landing valves"
 sprinkler = "Upright sprinklers, K80, 68 °C, on black steel pipework (NFPA 13)"
 detector = "Addressable smoke/heat detector"
+panel = "Addressable fire alarm control panel, 2-loop, with repeater at gatehouse"
+alarm_cable = "Fire-resistant 2-core 1.5 mm² screened cable (BS 7629 / enhanced grade)"
+sprinkler_pipe = "Black steel sprinkler pipework, grooved joints, painted red (NFPA 13)"
 
 [hvac]
 condensing_unit = "Air-cooled condensing unit, CO2 or low-GWP refrigerant, for 46 °C ambient"
 evaporator = "Unit cooler with electric or hot-gas defrost"
 extract_fan = "Roof extract fan for oven heat, stainless steel"
+ahu = "Packaged rooftop air handling unit with filtration (F7), cooling coil and fresh-air economiser"
+duct = "Galvanised steel ductwork to SMACNA, insulated where conditioned"
+ac_unit = "Ducted split air conditioning unit, inverter, rated for 52 °C ambient"
+diffuser = "Aluminium supply diffusers and extract grilles with dampers"
 
 [air]
 compressor = "Oil-free rotary screw compressor with dryer (food contact air, ISO 8573-1 class 1.2.1)"
 pipe = "Aluminium compressed-air ring main, 40 mm"
+drop = "Compressed-air drop with filter-regulator-lubricator and ball valve"
 
 [gas]
 tank = "Underground LPG tank with vaporiser, authority-approved"
 pipe = "Seamless steel gas pipe, welded, painted yellow, 50 mm"
+valve_train = "Oven gas valve train with safety shut-off, regulator and meter"
