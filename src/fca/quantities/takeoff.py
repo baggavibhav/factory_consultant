@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 import tomllib
 from dataclasses import asdict, dataclass
+from itertools import pairwise
 from pathlib import Path
 
 from fca.model.building import BuildingConfig, roof_height
@@ -47,12 +48,16 @@ MEP_SECTION = {
 }
 MEMBER_LABEL = {
     "column": "Portal frame columns",
+    "internal_column": "Internal columns (two-span option)",
     "gable_column": "Gable wind columns",
     "rafter": "Portal frame rafters",
+    "haunch": "Rafter haunches at eaves and apex",
     "eave_beam": "Eave beams / ties",
     "purlin": "Roof purlins",
     "girt": "Wall girts",
     "bracing": "Roof and wall bracing",
+    "mezz_beam": "Mezzanine beams",
+    "mezz_column": "Mezzanine columns",
 }
 
 
@@ -88,6 +93,7 @@ def takeoff(
     mep=None,
     plot: BBox | None = None,
     specs: dict | None = None,
+    openings: list | None = None,
 ) -> list[BoqItem]:
     specs = specs or load_specs()
     sp = lambda key: spec_text(specs, key)  # noqa: E731
@@ -174,15 +180,72 @@ def takeoff(
         "DPM 1000-gauge",
         0.10,
     )
+    perimeter = 2 * (env.width + env.depth)
+    gb = perimeter * 0.4 * 0.6
+    add(
+        "Substructure",
+        "Ground beams 400 × 600 mm around the perimeter",
+        "m³",
+        gb,
+        sp("concrete.ground_beam"),
+        f"Building perimeter {perimeter:,.0f} m × 0.4 × 0.6 m",
+        "Concrete C32/40 SRC (foundations)",
+        0.05,
+    )
+    add(
+        "Substructure",
+        "Reinforcement to ground beams",
+        "kg",
+        gb * 120,
+        sp("concrete.rebar"),
+        "120 kg/m³ of ground beam concrete (allowance)",
+        "Reinforcement bar",
+        0.05,
+    )
+    add(
+        "Substructure",
+        "Hygienic plinth wall 1.2 m under cladding",
+        "m²",
+        perimeter * 1.2,
+        sp("concrete.plinth"),
+        f"Perimeter {perimeter:,.0f} m × 1.2 m",
+        "Plinth wall",
+        0.05,
+    )
 
     # ---- Steel frame --------------------------------------------------------
-    profiles = specs["steel"]["profiles"]
+    steel = specs["steel"]
+    profiles = steel["profiles"]
+    xs = sorted({round(m.start[0], 2) for m in members if m.kind == "column"})
+    bay = max((b - a for a, b in pairwise(xs)), default=7.5)
+    ys = sorted({round(m.start[1], 2) for m in members if m.kind == "column"})
+    span = (ys[-1] - ys[0]) if len(ys) > 1 else env.depth
+    if any(m.kind == "internal_column" for m in members):
+        span /= 2
+
+    def by(table_key: str, value: float, fallback: str) -> tuple[str, float]:
+        for limit, section, kg in steel.get(table_key, []):
+            if value <= limit:
+                return section, kg
+        return tuple(profiles[fallback])
+
+    sized = {
+        "rafter": by("rafter_by_span", span, "rafter"),
+        "column": by("column_by_span", span, "column"),
+        "purlin": by("purlin_by_bay", bay, "purlin"),
+        "girt": by("purlin_by_bay", bay, "girt"),
+    }
+    raf_sec, raf_kg = sized["rafter"]
+    sized["haunch"] = (
+        f"fabricated haunch from {raf_sec}",
+        raf_kg * steel.get("haunch_factor", 1.4),
+    )
     main_t = 0.0
     for kind, label in MEMBER_LABEL.items():
         mm = [m for m in members if m.kind == kind]
         if not mm:
             continue
-        section, kg_m = profiles[kind]
+        section, kg_m = sized.get(kind) or profiles[kind]
         length = sum(m.length for m in mm)
         tonnes = length * kg_m / 1000
         secondary = kind in ("purlin", "girt", "bracing")
@@ -194,7 +257,14 @@ def takeoff(
             "t",
             tonnes,
             sp("steel.secondary") if secondary else sp("steel.grade"),
-            f"{len(mm)} nr, {length:,.0f} m × {kg_m} kg/m (measured length, indicative section)",
+            f"{len(mm)} nr, {length:,.0f} m × {kg_m:g} kg/m (measured length; section "
+            + (
+                f"by {span:.0f} m span)"
+                if kind in ("rafter", "column", "haunch")
+                else f"by {bay:.1f} m bay)"
+                if kind in ("purlin", "girt")
+                else "indicative)"
+            ),
             f"Steel {section}",
             0.03,
         )
@@ -316,8 +386,10 @@ def takeoff(
         "Blockwork / partitions",
         0.05,
     )
-    if rooms:
+    if rooms and mode == "concept":
+        hanger_m2 = 0.0
         for r in [r for r in rooms if r.category == "cold"]:
+            hanger_m2 += r.area_m2
             t = r.temp_c if r.temp_c is not None else 2
             key = (
                 "cold_panel_blast"
@@ -349,6 +421,16 @@ def takeoff(
                     "Freezer floor build-up",
                     0.05,
                 )
+        add(
+            sec,
+            "Cold-room ceiling suspension hangers",
+            "nr",
+            math.ceil(hanger_m2 / 4),
+            sp("concrete.hangers"),
+            "1 hanger per 4 m² of cold-room ceiling (allowance)",
+            "Ceiling hangers",
+            0.05,
+        )
     else:
         add(
             sec,
@@ -385,6 +467,7 @@ def takeoff(
             "office": "Office and lab floors",
             "amenity": "Changing, dining and prayer floors",
             "utility": "Plant room floors",
+            "circulation": "Corridor and entrance floors",
         }
         for cat, a in by_cat.items():
             add(
@@ -393,7 +476,9 @@ def takeoff(
                 "m²",
                 a,
                 sp(f"finishes.{cat}"),
-                "Zone areas from the layout",
+                "Room areas from the layout"
+                if mode == "concept"
+                else "Room areas read from the drawing (open-plan zones estimated)",
                 f"Floor finish ({cat})",
                 0.05,
             )
@@ -419,6 +504,143 @@ def takeoff(
             "Plot area minus building (allowance; landscaping not deducted)",
             "Paving",
             0.05,
+        )
+
+    # ---- Doors, docks and silos -------------------------------------------------------
+    if openings:
+        count = {}
+        for o in openings:
+            count[o.kind] = count.get(o.kind, 0) + 1
+        docks = count.get("dock_in", 0) + count.get("dock_out", 0)
+        add(
+            "Building envelope",
+            "Loading dock doors 3.0 × 3.2 m",
+            "nr",
+            docks,
+            sp("openings.dock_door"),
+            f"{count.get('dock_in', 0)} goods-in and {count.get('dock_out', 0)} dispatch docks "
+            "(goods-in 1 per 250 m² of first zone, dispatch 1 per 90 m²)",
+            "Dock doors",
+        )
+        add(
+            "Building envelope",
+            "Dock levellers with shelters",
+            "nr",
+            docks,
+            sp("openings.dock_leveller"),
+            "One per dock door",
+            "Dock levellers",
+        )
+        add(
+            "Building envelope",
+            "Fire exit doors",
+            "nr",
+            count.get("fire_exit", 0),
+            sp("openings.fire_exit"),
+            "Every 40 m along the rear façade, both gables and both corridor ends",
+            "Fire exit doors",
+        )
+        add(
+            "Building envelope",
+            "Main entrance and personnel doors",
+            "nr",
+            count.get("entrance", 0),
+            sp("openings.personnel_door"),
+            "Main entrance",
+            "Personnel doors",
+        )
+        add(
+            "External works",
+            "Flour silos with pneumatic conveying",
+            "nr",
+            count.get("silo", 0),
+            sp("openings.silo"),
+            "Two silos next to the production wall",
+            "Flour silos",
+        )
+
+    # ---- Room fittings from a drawing (no routes yet) ----------------------------------
+    if rooms and mode == "drawing" and mep is None:
+        from fca.concept.mep import LUX, floor_drains, wet_outlets
+
+        hall_cats = ("production", "storage", "dispatch", "cold")
+        lights = {"high-bay": 0, "panel": 0, "cold": 0}
+        drains = outlets = sprinklers = detectors = 0
+        for r in rooms:
+            if r.category == "cold":
+                lights["cold"] += math.ceil(LUX["cold"] * r.area_m2 / (8000 * 0.55))
+            elif r.category in hall_cats:
+                lights["high-bay"] += math.ceil(LUX[r.category] * r.area_m2 / (20000 * 0.55))
+            else:
+                lights["panel"] += math.ceil(LUX.get(r.category, 200) * r.area_m2 / (4000 * 0.55))
+            drains += floor_drains(r.name, r.category, r.area_m2)
+            outlets += wet_outlets(r.name, r.category, r.area_m2)
+            if r.category in ("storage", "dispatch"):
+                sprinklers += math.ceil(r.area_m2 / 12)
+            detectors += math.ceil(r.area_m2 / 60)
+        basis = "Per room read from the drawing; routes are not generated for drawings yet"
+        add(
+            "Electrical",
+            "LED high-bay luminaires",
+            "nr",
+            lights["high-bay"],
+            sp("electrical.light_highbay"),
+            basis,
+            "LED high-bay",
+        )
+        add(
+            "Electrical",
+            "LED panel luminaires",
+            "nr",
+            lights["panel"],
+            sp("electrical.light_panel"),
+            basis,
+            "LED panel",
+        )
+        add(
+            "Electrical",
+            "LED low-temperature luminaires",
+            "nr",
+            lights["cold"],
+            sp("electrical.light_cold"),
+            basis,
+            "LED cold luminaire",
+        )
+        add(
+            "Water supply",
+            "Hand-wash stations and sanitary outlets",
+            "nr",
+            outlets,
+            sp("plumbing.outlet"),
+            basis,
+            "Sanitary outlets",
+        )
+        add(
+            "Drainage",
+            "Stainless steel hygienic floor gullies",
+            "nr",
+            drains,
+            sp("drainage.floor_drain"),
+            basis,
+            "Floor gullies",
+        )
+        add(
+            "Fire protection",
+            "Sprinkler heads in stores and dispatch",
+            "nr",
+            sprinklers,
+            sp("fire.sprinkler"),
+            basis,
+            "Sprinklers",
+        )
+        add(
+            "Fire protection",
+            "Fire alarm detectors",
+            "nr",
+            detectors,
+            sp("fire.detector"),
+            basis,
+            "Detectors",
         )
 
     # ---- MEP ---------------------------------------------------------------------

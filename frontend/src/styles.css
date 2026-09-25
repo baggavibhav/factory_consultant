@@ -236,7 +236,7 @@ table.list { width: 100%; border-collapse: collapse; min-width: 760px; }
 .drawer-head p { margin: 4px 0 0; }
 .drawer-body { padding: 20px 24px; overflow: auto; flex: 1; display: grid; gap: 18px; align-content: start; }
 .drawer-foot { padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; }
-.field { display: grid; gap: 6px; }
+.field { display: grid; gap: 6px; align-content: start; }
 .field label, .field .label { font-weight: 560; font-size: 13px; }
 .field .hint { font-size: 12.5px; color: var(--ink-3); }
 .field .err { font-size: 12.5px; color: var(--bad); }
@@ -428,3 +428,34 @@ table.sched { width: 100%; border-collapse: collapse; font-size: 13px; }
 .boq-foot { font-size: 12.5px; padding: 14px 22px 20px; margin: 0; }
 .stage-switch { margin-left: auto; align-self: center; padding: 6px 0; }
 @media (max-width: 900px) { .boq-metrics { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- v0.6: plan view, design options, changes ---------- */
+.plan { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 260px; background: var(--surface); }
+.plan-svg { width: 100%; height: 100%; cursor: grab; touch-action: none; background: var(--scene-bg); }
+.plan-svg:active { cursor: grabbing; }
+.p-plot { fill: color-mix(in srgb, var(--scene-ground) 70%, transparent); stroke: var(--ink-3); }
+.p-building { fill: var(--surface); }
+.p-wall { stroke: var(--ink); stroke-linecap: square; }
+.p-cold { stroke: var(--cold); }
+.p-col { fill: #c7542a; }
+.p-name { fill: var(--ink); font-family: var(--font); font-weight: 560; pointer-events: none; paint-order: stroke; stroke: var(--surface); stroke-width: 0.15px; }
+.plan-panel { border-left: 1px solid var(--line); padding: 14px 16px; overflow: auto; }
+.svc { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.svc-name { flex: 1; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; cursor: pointer; text-align: left; font-size: 13px; }
+.svc-name .num { margin-left: auto; font-size: 12px; }
+.svc-name:hover { background: var(--surface-2); }
+.svc.solo .svc-name { background: var(--surface-3); font-weight: 600; }
+.svc-line { width: 16px; height: 4px; border-radius: 2px; flex: none; }
+.plan-tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--canvas); font-size: 12px; padding: 6px 9px; border-radius: 6px; max-width: 280px; box-shadow: var(--shadow-pop); }
+.plan-tip .t1 { font-weight: 600; }
+.changes { border: 1px solid color-mix(in srgb, var(--signal) 55%, var(--line)); background: color-mix(in srgb, var(--signal) 10%, var(--surface)); border-radius: var(--r-sm); padding: 10px 12px; margin-bottom: 14px; }
+.changes h3 { font-size: 13px; margin: 0 0 6px; font-weight: 620; }
+.changes table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.changes td { padding: 3px 0; font-variant-numeric: tabular-nums; }
+.changes td.r { text-align: right; }
+.up { color: var(--bad); } .down { color: var(--ok); }
+.zone-sliders { display: grid; gap: 8px; }
+.zone-slider { display: grid; grid-template-columns: 1fr 140px 48px; gap: 10px; align-items: center; font-size: 13px; }
+.zone-slider input { width: 100%; }
+.zone-slider .num { text-align: right; color: var(--ink-2); }
+@media (max-width: 900px) { .plan { grid-template-columns: 1fr; grid-template-rows: 1fr auto; } .plan-panel { border-left: 0; border-top: 1px solid var(--line); max-height: 40%; } }

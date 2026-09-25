@@ -170,3 +170,31 @@ def test_concept_build_produces_boq(client):
     xlsx = client.get(f"/api/projects/{pid}/boq.xlsx")
     assert xlsx.status_code == 200 and xlsx.content[:2] == b"PK"
     assert "BOQ_test_BOQ.xlsx" in xlsx.headers["content-disposition"]
+
+
+def test_edit_and_rebuild_reports_changes(client):
+    pid = client.post(
+        "/api/projects",
+        json={"name": "Edit test", "plant_type": "industrial", "country": "Oman", "mode": "brief"},
+    ).json()["id"]
+    brief = {"plant_type": "industrial", "built_up_area_m2": 3000}
+    client.put(f"/api/projects/{pid}/brief", json=brief)
+    first = client.post(f"/api/projects/{pid}/builds").json()
+    assert first["latest_build"]["changes"] == []
+    client.put(
+        f"/api/projects/{pid}/brief",
+        json=brief | {"built_up_area_m2": 3600, "structure_option": "two_span"},
+    )
+    second = client.post(f"/api/projects/{pid}/builds").json()
+    labels = {c["label"]: c for c in second["latest_build"]["changes"]}
+    assert labels["Footprint"]["after"] > labels["Footprint"]["before"]
+    assert "Structural steel" in labels
+    plan = client.get(f"/api/projects/{pid}/plan").json()
+    assert plan["rooms"] and plan["routes"] and plan["columns"]
+    assert any(o["kind"] == "dock_out" for o in plan["openings"])
+
+
+def test_brief_defaults_include_design_options(client):
+    d = client.get("/api/brief-defaults/industrial").json()
+    assert "Production area" in d["hall_zones"]
+    assert d["dispatch_yard_m"] >= 30 and d["span_m"] == 40.0

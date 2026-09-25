@@ -42,6 +42,47 @@ PLANT_TYPE_LABELS = {
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
+CHANGE_FIELDS = [
+    ("Footprint", lambda f: f.get("footprint_m2"), "m²"),
+    ("Building length", lambda f: f["building_m"][0], "m"),
+    ("Building depth", lambda f: f["building_m"][1], "m"),
+    ("Portal frames", lambda f: f.get("frames"), ""),
+    ("Structural steel", lambda f: (f.get("quantities") or {}).get("steel_t"), "t"),
+    ("Concrete", lambda f: (f.get("quantities") or {}).get("concrete_m3"), "m³"),
+    ("Roof panels", lambda f: (f.get("quantities") or {}).get("roof_m2"), "m²"),
+    ("Wall cladding", lambda f: (f.get("quantities") or {}).get("wall_m2"), "m²"),
+    (
+        "Transformer",
+        lambda f: ((f.get("mep") or {}).get("electrical") or {}).get("transformer_kva"),
+        "kVA",
+    ),
+    ("Fire water tank", lambda f: ((f.get("mep") or {}).get("fire") or {}).get("tank_m3"), "m³"),
+]
+
+
+def compare_builds(before: dict, after: dict) -> list[dict]:
+    """Key figures that changed between two builds (for 'what changed' after an edit)."""
+    out = []
+    for label, get, unit in CHANGE_FIELDS:
+        try:
+            a, b = get(before), get(after)
+        except (KeyError, TypeError, IndexError):
+            continue
+        if a is None or b is None or abs(float(b) - float(a)) < 0.05:
+            continue
+        pct = (float(b) - float(a)) / float(a) * 100 if a else None
+        out.append(
+            {
+                "label": label,
+                "before": a,
+                "after": b,
+                "unit": unit,
+                "change_pct": round(pct, 1) if pct is not None else None,
+            }
+        )
+    return out
+
+
 def create_app(
     data_dir: Path | None = None,
     config_dir: Path | None = None,
@@ -114,8 +155,19 @@ def create_app(
     # -- brief --------------------------------------------------------------
     @app.get("/api/brief-defaults/{plant_type}")
     def brief_defaults(plant_type: PlantType) -> dict:
+        from fca.concept.program import hall_zone_names, load_template
+
         values, _ = resolve(Brief(plant_type=plant_type.value, built_up_area_m2=1000))
         values.pop("built_up_area_m2")
+        tpl = load_template(plant_type.value)
+        values |= {
+            "hall_zones": hall_zone_names(tpl),
+            "span_m": tpl.building["target_depth_m"],
+            "bay_m": tpl.building["bay_m"],
+            "roof_pitch_deg": tpl.building["roof_pitch_deg"],
+            "goods_in_yard_m": tpl.site["setback_west_m"],
+            "dispatch_yard_m": tpl.site["setback_east_m"],
+        }
         return values
 
     @app.put("/api/projects/{project_id}/brief", response_model=Project)
@@ -203,6 +255,7 @@ def create_app(
             project.status = ProjectStatus.FAILED
             store.save(project, ("error", f"Build failed: {exc}"))
             raise HTTPException(422, f"Build failed: {exc}") from exc
+        previous = project.latest_build.facts if project.latest_build else None
         project.latest_build = BuildInfo(
             id=uuid.uuid4().hex[:8],
             started_at=started,
@@ -210,6 +263,7 @@ def create_app(
             duration_s=round(time.perf_counter() - t0, 1),
             facts=result.facts,
             warnings=result.warnings,
+            changes=compare_builds(previous, result.facts) if previous else [],
         )
         project.builds += 1
         project.status = ProjectStatus.MODEL_READY
@@ -231,6 +285,10 @@ def create_app(
     @app.get("/api/projects/{project_id}/labels")
     def model_labels(project_id: str) -> FileResponse:
         return output_file(project_id, "model.labels.json", "application/json")
+
+    @app.get("/api/projects/{project_id}/plan")
+    def plan(project_id: str) -> FileResponse:
+        return output_file(project_id, "model.plan.json", "application/json")
 
     @app.get("/api/projects/{project_id}/boq")
     def boq(project_id: str) -> FileResponse:

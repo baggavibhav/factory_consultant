@@ -3,7 +3,7 @@ import { Hammer, Loader2 } from "lucide-react";
 import { api, type Brief, type PlantType } from "../lib/api";
 import { M2_PER_SQFT, int } from "../lib/format";
 
-type Defaults = Record<string, number | boolean | null | string>;
+type Defaults = Record<string, number | boolean | null | string | string[]>;
 type Unit = "m2" | "sqft";
 interface Props {
   plantType: PlantType;
@@ -47,6 +47,13 @@ export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel
   useEffect(() => { api.briefDefaults(plantType).then(setD).catch(() => setD({})); }, [plantType]);
   const set = <K extends keyof Brief>(k: K, v: Brief[K]) => setB((x) => ({ ...x, [k]: v }));
   const ph = (k: string, suffix = "") => (d[k] != null ? `Default ${d[k]}${suffix}` : "Optional");
+  const zones = (d.hall_zones as string[] | undefined) ?? [];
+  const zoneSize = (z: string) => Math.round((b.zone_sizes?.[z] ?? 1) * 100);
+  const setZone = (z: string, pct: number) => {
+    const next = { ...(b.zone_sizes ?? {}) };
+    if (pct === 100) delete next[z]; else next[z] = pct / 100;
+    set("zone_sizes", next);
+  };
 
   function switchUnit(u: Unit) {
     if (u === unit) return;
@@ -141,6 +148,9 @@ export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel
           <Field id="bf-qa" label="QA laboratory">
             <YesNo id="bf-qa" value={b.qa_lab} def={d.qa_lab} onChange={(v) => set("qa_lab", v)} />
           </Field>
+          <Field id="bf-silos" label="Outdoor flour silos">
+            <YesNo id="bf-silos" value={b.flour_silos} def={d.flour_silos} onChange={(v) => set("flour_silos", v)} />
+          </Field>
         </div>
       </div>
 
@@ -153,7 +163,56 @@ export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel
           <Field id="bf-office" label="Office staff">
             <input id="bf-office" className="input num" inputMode="numeric" value={txt(b.office_staff)} placeholder={ph("office_staff")} onChange={(e) => set("office_staff", num(e.target.value))} />
           </Field>
+          <Field id="bf-female" label="Women in production (%)" hint="Sizes separate changing, hygiene and prayer rooms">
+            <input id="bf-female" className="input num" inputMode="numeric" value={b.female_staff_share == null ? "" : String(Math.round(b.female_staff_share * 100))}
+              placeholder={d.female_staff_share != null ? `Default ${Math.round(Number(d.female_staff_share) * 100)}%` : "Optional"}
+              onChange={(e) => { const v = num(e.target.value); set("female_staff_share", v == null ? null : Math.min(100, Math.max(0, v)) / 100); }} />
+          </Field>
         </div>
+      </div>
+
+      <div className="brief-section">
+        <h3>Design options</h3>
+        <p className="muted" style={{ margin: "-6px 0 12px", fontSize: 13 }}>Change any of these and rebuild to compare. The Overview then shows what changed in size, steel, concrete and services.</p>
+        <div className="grid3">
+          <Field id="bf-struct" label="Structure">
+            <select id="bf-struct" className="select" value={b.structure_option ?? ""} onChange={(e) => set("structure_option", (e.target.value || null) as Brief["structure_option"])}>
+              <option value="">Default (clear span)</option>
+              <option value="clear_span">Clear span, no internal columns</option>
+              <option value="two_span">Internal column line (two spans)</option>
+            </select>
+          </Field>
+          <Field id="bf-span" label="Building depth / span (m)">
+            <input id="bf-span" className="input num" inputMode="decimal" value={txt(b.span_m)} placeholder={ph("span_m", " m")} onChange={(e) => set("span_m", num(e.target.value))} />
+          </Field>
+          <Field id="bf-bay" label="Bay spacing (m)">
+            <input id="bf-bay" className="input num" inputMode="decimal" value={txt(b.bay_m)} placeholder={ph("bay_m", " m")} onChange={(e) => set("bay_m", num(e.target.value))} />
+          </Field>
+          <Field id="bf-pitch" label="Roof pitch (°)">
+            <input id="bf-pitch" className="input num" inputMode="decimal" value={txt(b.roof_pitch_deg)} placeholder={ph("roof_pitch_deg", "°")} onChange={(e) => set("roof_pitch_deg", num(e.target.value))} />
+          </Field>
+          <Field id="bf-gin" label="Goods-in yard (m)" hint="West side, raw-material trucks">
+            <input id="bf-gin" className="input num" inputMode="decimal" value={txt(b.goods_in_yard_m)} placeholder={ph("goods_in_yard_m", " m")} onChange={(e) => set("goods_in_yard_m", num(e.target.value))} />
+          </Field>
+          <Field id="bf-disp" label="Dispatch apron (m)" hint="East side, trucks turning and docking">
+            <input id="bf-disp" className="input num" inputMode="decimal" value={txt(b.dispatch_yard_m)} placeholder={ph("dispatch_yard_m", " m")} onChange={(e) => set("dispatch_yard_m", num(e.target.value))} />
+          </Field>
+        </div>
+        {zones.length > 0 && (
+          <>
+            <h3 style={{ marginTop: 18 }}>Zone sizes</h3>
+            <p className="muted" style={{ margin: "-6px 0 10px", fontSize: 13 }}>Make a zone larger or smaller relative to the others. The hall area is shared out again on rebuild.</p>
+            <div className="zone-sliders">
+              {zones.map((z) => (
+                <label className="zone-slider" key={z}>
+                  <span>{z}</span>
+                  <input type="range" min={50} max={200} step={10} value={zoneSize(z)} onChange={(e) => setZone(z, Number(e.target.value))} aria-label={`${z} size`} />
+                  <span className="num">{zoneSize(z)}%</span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="brief-foot">

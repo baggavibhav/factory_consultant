@@ -13,7 +13,13 @@ from fca.ingestion.extract import extract_geometry, read_dxf
 from fca.ingestion.layers import load_config
 from fca.model.building import BuildingConfig, load_building_config
 from fca.model3d.build import build_model
-from fca.structure.frame import FrameLayout, Member, generate_frame, schedule
+from fca.structure.frame import (
+    FrameLayout,
+    Member,
+    generate_frame,
+    mezzanine_members,
+    schedule,
+)
 from fca.structure.grid import alignment_offset, extract_grid, pick
 from fca.viewer.html import render_viewer
 
@@ -102,7 +108,7 @@ def _write_quantities(
             sum(i.qty for i in items if i.unit == "m³" and "xcavat" not in i.description), 1
         ),
         "roof_m2": round(sum(i.qty for i in items if "roof panels" in i.description), 1),
-        "wall_m2": round(sum(i.qty for i in items if "cladding" in i.description), 1),
+        "wall_m2": round(sum(i.qty for i in items if "cladding panels" in i.description), 1),
         "items": len(items),
     }
     data = {
@@ -118,6 +124,80 @@ def _write_quantities(
     }
     (out_dir / f"{name}.boq.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
     return headline
+
+
+def _write_plan(out_dir, name, plot, building, segments, rooms, mep, openings, members) -> None:
+    """2D plan data for the web app's plan view: walls, rooms, services, openings, columns."""
+    from fca.model.schema import Category
+
+    def poly(r):
+        if hasattr(r, "polygon"):
+            return [[round(x, 2), round(y, 2)] for x, y in r.polygon.exterior.coords]
+        q = r.rect
+        return [[q.xmin, q.ymin], [q.xmax, q.ymin], [q.xmax, q.ymax], [q.xmin, q.ymax]]
+
+    data = {
+        "plot": [plot.xmin, plot.ymin, plot.xmax, plot.ymax],
+        "building": [building.xmin, building.ymin, building.xmax, building.ymax],
+        "walls": [
+            [
+                round(s.x1, 2),
+                round(s.y1, 2),
+                round(s.x2, 2),
+                round(s.y2, 2),
+                "cold" if s.category == Category.COLD_PANEL else "wall",
+            ]
+            for s in segments
+            if s.category in (Category.WALL, Category.COLD_PANEL)
+        ],
+        "rooms": [
+            {
+                "name": r.name,
+                "category": r.category,
+                "area_m2": round(r.area_m2, 1),
+                "estimated": getattr(r, "estimated", False),
+                "points": poly(r),
+            }
+            for r in rooms
+        ],
+        "columns": [
+            [round(m.start[0], 2), round(m.start[1], 2)]
+            for m in members
+            if m.kind in ("column", "internal_column", "gable_column")
+        ],
+        "openings": [
+            {"kind": o.kind, "x": round(o.x, 2), "y": round(o.y, 2), "side": o.side}
+            for o in openings
+        ],
+        "routes": [],
+        "items": [],
+    }
+    if mep is not None:
+        data["routes"] = [
+            {
+                "service": r.service,
+                "kind": r.kind,
+                "size_mm": r.size_mm,
+                "length_m": round(r.length, 1),
+                "underground": all(p[2] < 0 for p in r.points),
+                "points": [[round(p[0], 2), round(p[1], 2)] for p in r.points],
+            }
+            for r in mep.routes
+        ]
+        data["items"] = [
+            {
+                "service": i.service,
+                "kind": i.kind,
+                "x": round(i.at[0], 2),
+                "y": round(i.at[1], 2),
+                "w": i.size[0],
+                "d": i.size[1],
+            }
+            for i in mep.items
+        ]
+    (Path(out_dir) / f"{name}.plan.json").write_text(
+        json.dumps(data, separators=(",", ":")), encoding="utf-8"
+    )
 
 
 def _design_basis(facts: dict) -> dict:
@@ -155,11 +235,21 @@ def build_3d(
     layout = offset = None
     if cfg.structure is not None:
         layout, offset = _frame_layout(doc, plant, cfg)
-        members = generate_frame(cfg, layout)
+        members = generate_frame(cfg, layout) + mezzanine_members(cfg)
         if cfg.structure.sizes_are_indicative:
             warnings.append("Structural member sizes are indicative, not engineered.")
 
+    rooms = []
+    try:
+        from fca.ingestion.rooms import extract_rooms
+
+        rooms = extract_rooms(doc, plant, cfg.envelope)
+    except Exception as exc:  # room reading is best effort; the model still builds
+        log.warning("Room extraction failed: %s", exc)
+        warnings.append("Room outlines could not be read from this drawing.")
+
     builder = build_model(cfg, geometry, members)
+    builder.add_plinth()
     name = name or plant.name
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -188,6 +278,18 @@ def build_3d(
         "member_schedule": sched,
         "sizes_indicative": bool(cfg.structure and cfg.structure.sizes_are_indicative),
         "warnings": warnings,
+        "program": [
+            {
+                "name": r.name,
+                "category": r.category,
+                "area_m2": round(r.area_m2, 1),
+                "temp_c": r.temp_c,
+                "width_m": round(r.rect.width, 2),
+                "depth_m": round(r.rect.depth, 2),
+                "estimated": r.estimated,
+            }
+            for r in rooms
+        ],
     }
     report_path = out_dir / f"{name}.structure.json"
     report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
@@ -202,7 +304,7 @@ def build_3d(
         xs = [v for sg in bounds for v in (sg.x1, sg.x2)]
         ys = [v for sg in bounds for v in (sg.y1, sg.y2)]
         plot = BBox(xmin=min(xs), ymin=min(ys), xmax=max(xs), ymax=max(ys))
-    items = takeoff(cfg, members, geometry.segments, "drawing", plot=plot)
+    items = takeoff(cfg, members, geometry.segments, "drawing", rooms=rooms, plot=plot)
     proj = {"name": name, "basis": f"Drawing {geometry.source_file}", **(project or {})}
     facts["quantities"] = _write_quantities(
         out_dir,
@@ -213,13 +315,26 @@ def build_3d(
             *warnings,
             "Wall and panel areas from the drawing halve the two face lines drawn per "
             "wall; openings are not deducted.",
-            "Finishes and MEP need room outlines; they are measured for concept projects.",
+            f"{len(rooms)} rooms were read from the drawing; open-plan zone boundaries are "
+            "estimated. Fittings are counted per room; MEP routes are generated for concept "
+            "projects only.",
         ],
         _design_basis(facts),
         None,
     )
     report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
 
+    _write_plan(
+        out_dir,
+        name,
+        plot or cfg.envelope,
+        cfg.envelope,
+        geometry.segments,
+        rooms,
+        None,
+        [],
+        members,
+    )
     labels = _labels(geometry, cfg, builder)
     (out_dir / f"{name}.labels.json").write_text(json.dumps(labels, indent=1), encoding="utf-8")
 
@@ -265,12 +380,14 @@ def build_concept(
         labels=[],
         stats={Category.WALL: CategoryStats(count=len(lay.segments), line_length_m=0.0)},
     )
-    members = generate_frame(cfg, lay.frame)
+    members = generate_frame(cfg, lay.frame) + mezzanine_members(cfg)
     builder = build_model(cfg, geometry, members)
     for room in lay.rooms:
         builder.add_zone(room.category, room.rect)
     mep = build_mep(lay, values, brief.plant_type)
     builder.add_mep(mep)
+    builder.add_plinth()
+    builder.add_openings(lay.openings)
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +436,19 @@ def build_concept(
         "assumptions": assumptions,
         "warnings": warnings,
     }
-    items = takeoff(cfg, members, lay.segments, "concept", rooms=lay.rooms, mep=mep, plot=lay.plot)
+    items = takeoff(
+        cfg,
+        members,
+        lay.segments,
+        "concept",
+        rooms=lay.rooms,
+        mep=mep,
+        plot=lay.plot,
+        openings=lay.openings,
+    )
+    _write_plan(
+        out_dir, name, lay.plot, lay.building, lay.segments, lay.rooms, mep, lay.openings, members
+    )
     proj = {
         "name": name,
         "basis": f"Concept design from brief ({tpl.name})",

@@ -7,6 +7,7 @@ import { api, ApiError, type Brief, type Label, type Project } from "../lib/api"
 import { MEMBER_NAMES, PLANT_TYPE, ZONE_COLOURS, bytes, dec, int, sqft, stamp, statusOf } from "../lib/format";
 import BriefForm from "../components/BriefForm";
 import BoqView from "../components/BoqView";
+import PlanView from "../components/PlanView";
 import { PlantIcon } from "../components/Brand";
 import { useToast } from "../components/Toasts";
 import Viewer3D, { LAYERS, SERVICE_KEYS, type LayerKey, type ViewName } from "../components/Viewer3D";
@@ -25,7 +26,9 @@ const VIEWS: { key: ViewName; label: string; concept?: boolean }[] = [
 const DEFAULT_LAYERS = Object.fromEntries(LAYERS.map((l) => [l.key, l.group !== "Services" && l.key !== "foundations"])) as Record<LayerKey, boolean>;
 const allServices = (on: boolean) => Object.fromEntries(SERVICE_KEYS.map((k) => [k, on])) as Partial<Record<LayerKey, boolean>>;
 
-function Steps({ project, panel, setPanel }: { project: Project; panel: "model" | "quantities"; setPanel: (p: "model" | "quantities") => void }) {
+type Panel = "model" | "plan" | "quantities";
+
+function Steps({ project, panel, setPanel }: { project: Project; panel: Panel; setPanel: (p: Panel) => void }) {
   const hasDrawing = project.mode === "brief" ? !!project.brief : !!project.drawing;
   const hasModel = project.status === "model_ready";
   const items = [
@@ -47,6 +50,7 @@ function Steps({ project, panel, setPanel }: { project: Project; panel: "model" 
         <li className="stage-switch">
           <div className="seg" role="group" aria-label="Show">
             <button aria-pressed={panel === "model"} onClick={() => setPanel("model")}>3D model</button>
+            <button aria-pressed={panel === "plan"} onClick={() => setPanel("plan")}>Plan</button>
             <button aria-pressed={panel === "quantities"} onClick={() => setPanel("quantities")}>Quantities</button>
           </div>
         </li>
@@ -140,7 +144,7 @@ export default function ProjectPage() {
   const [building, setBuilding] = useState(false);
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [editingBrief, setEditingBrief] = useState(false);
-  const [panel, setPanel] = useState<"model" | "quantities">("model");
+  const [panel, setPanel] = useState<Panel>("model");
   const [xray, setXray] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [view, setView] = useState<ViewName>("iso");
@@ -195,7 +199,7 @@ export default function ProjectPage() {
       setProject(p);
       setEditingBrief(false);
       setView("iso");
-      setTab("program");
+      setTab(p.latest_build?.changes?.length ? "overview" : "program");
       toast(`Concept model built: ${int(p.latest_build?.facts.footprint_m2 ?? 0)} m², ${p.latest_build?.facts.frames} frames`);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Build failed.", true);
@@ -236,7 +240,8 @@ export default function ProjectPage() {
   const f = b?.facts;
   const status = statusOf(project);
   const concept = project.mode === "brief";
-  const tabs: Tab[] = concept ? ["overview", "program", "layers", "structure", "activity"] : ["overview", "layers", "structure", "files", "activity"];
+  const tabs: Tab[] = ["overview", "program", "layers", "structure", "activity"];
+  const tabLabel = (t: Tab) => (t === "program" ? (concept ? "Program" : "Rooms") : t[0].toUpperCase() + t.slice(1));
   const ready = project.status === "model_ready" && !!f;
   const sched = f ? Object.entries(f.member_schedule) : [];
   const steelLen = sched.filter(([k]) => k !== "foundation").reduce((s, [, v]) => s + v.length_m, 0);
@@ -260,7 +265,7 @@ export default function ProjectPage() {
           {ready && f?.quantities && <a className="btn" href={api.boqXlsxUrl(id)}><Download size={16} /> BOQ (Excel)</a>}
           {ready && <a className="btn" href={api.viewerUrl(id)}><Download size={16} /> 3D viewer</a>}
           {concept && ready && !editingBrief && (
-            <button className="btn" onClick={() => setEditingBrief(true)} disabled={building}><Pencil size={16} /> Edit brief</button>
+            <button className="btn" onClick={() => setEditingBrief(true)} disabled={building}><Pencil size={16} /> Edit design</button>
           )}
           {(concept ? !!project.brief && ready && !editingBrief : !!project.drawing) && (
             <button className={`btn ${ready ? "" : "primary"}`} onClick={build} disabled={building || uploading}>
@@ -283,6 +288,7 @@ export default function ProjectPage() {
               </div>
             ) :
             !concept && (!project.drawing || uploading) ? <Dropzone onFile={upload} busy={uploading} /> :
+            ready && panel === "plan" ? <PlanView projectId={id} buildId={b!.id} concept={concept} /> :
             ready && panel === "quantities" ? <BoqView projectId={id} buildId={b!.id} concept={concept} onRebuild={build} /> :
             !ready ? <ReadyToBuild project={project} onBuild={build} /> :
             <>
@@ -304,13 +310,28 @@ export default function ProjectPage() {
           <div className="tabs" role="tablist">
             {tabs.map((t) => (
               <button key={t} role="tab" className="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-                {t[0].toUpperCase() + t.slice(1)}
+                {tabLabel(t)}
               </button>
             ))}
           </div>
           <div className="tab-body" role="tabpanel">
             {tab === "overview" && (
               <>
+                {ready && b!.changes && b!.changes.length > 0 && (
+                  <div className="changes" role="status">
+                    <h3>What changed in the last rebuild</h3>
+                    <table><tbody>
+                      {b!.changes.map((c) => (
+                        <tr key={c.label}>
+                          <td>{c.label}</td>
+                          <td className="r subtle">{dec(c.before)} → </td>
+                          <td className="r"><strong>{dec(c.after)} {c.unit}</strong></td>
+                          <td className={`r ${c.after > c.before ? "up" : "down"}`}>{c.change_pct != null ? `${c.change_pct > 0 ? "+" : ""}${dec(c.change_pct)}%` : ""}</td>
+                        </tr>
+                      ))}
+                    </tbody></table>
+                  </div>
+                )}
                 {ready ? (
                   <>
                     <div className="metric-row">
@@ -359,13 +380,13 @@ export default function ProjectPage() {
               ready && f?.program ? (
                 <>
                   <div className="section">
-                    <h3 className="section-title">Space program <span className="subtle" style={{ fontWeight: 450 }}>{f.template}</span></h3>
+                    <h3 className="section-title">{concept ? "Space program" : "Rooms read from the drawing"} <span className="subtle" style={{ fontWeight: 450 }}>{concept ? f.template : `${f.program.length} rooms`}</span></h3>
                     <table className="sched">
                       <thead><tr><th>Zone</th><th className="r">Area</th><th className="r">Size</th></tr></thead>
                       <tbody>
                         {f.program.map((z) => (
                           <tr key={z.name}>
-                            <td><span className="zone-dot" style={{ background: ZONE_COLOURS[z.category] ?? "#ccc" }} />{z.name}{z.temp_c != null && <span className="subtle"> {z.temp_c > 0 ? "+" : ""}{z.temp_c}°C</span>}</td>
+                            <td><span className="zone-dot" style={{ background: ZONE_COLOURS[z.category] ?? "#ccc" }} />{z.name}{z.temp_c != null && <span className="subtle"> {z.temp_c > 0 ? "+" : ""}{z.temp_c}°C</span>}{z.estimated && <span className="subtle"> (est.)</span>}</td>
                             <td className="r">{int(z.area_m2)} m²</td>
                             <td className="r subtle">{dec(z.width_m)} × {dec(z.depth_m)}</td>
                           </tr>
@@ -385,11 +406,11 @@ export default function ProjectPage() {
                     <div className="section">
                       <h3 className="section-title">Assumed, please confirm</h3>
                       <ul className="assume">{f.assumptions.map((a) => <li key={a}>{a[0].toUpperCase() + a.slice(1)}</li>)}</ul>
-                      <button className="btn sm" style={{ marginTop: 12 }} onClick={() => setEditingBrief(true)}><Pencil size={14} /> Edit brief</button>
+                      <button className="btn sm" style={{ marginTop: 12 }} onClick={() => setEditingBrief(true)}><Pencil size={14} /> Edit brief and design</button>
                     </div>
                   )}
                 </>
-              ) : <p className="muted" style={{ marginTop: 0 }}>The space program appears once the concept is built.</p>
+              ) : <p className="muted" style={{ marginTop: 0 }}>{concept ? "The space program appears once the concept is built." : "Rooms appear once the model is built."}</p>
             )}
 
             {tab === "layers" && (
@@ -449,7 +470,7 @@ export default function ProjectPage() {
               ) : <p className="muted" style={{ marginTop: 0 }}>The member schedule appears once the model is built.</p>
             )}
 
-            {tab === "files" && (
+            {tab === "overview" && !concept && (
               <>
                 {project.drawing ? (
                   <div className="file-card">

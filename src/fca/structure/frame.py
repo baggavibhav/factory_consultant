@@ -16,7 +16,20 @@ from fca.model.building import BuildingConfig, roof_height
 
 Point = tuple[float, float, float]  # plan x, plan y, height z (metres)
 
-KINDS = ("foundation", "column", "gable_column", "rafter", "eave_beam", "purlin", "girt", "bracing")
+KINDS = (
+    "foundation",
+    "column",
+    "internal_column",
+    "gable_column",
+    "rafter",
+    "haunch",
+    "eave_beam",
+    "purlin",
+    "girt",
+    "bracing",
+    "mezz_column",
+    "mezz_beam",
+)
 
 
 @dataclass(frozen=True)
@@ -81,6 +94,36 @@ def generate_frame(cfg: BuildingConfig, layout: FrameLayout) -> list[Member]:
         add("rafter", (x, ys, rafter_z(ys)), (x, ridge, rafter_z(ridge)))
         add("rafter", (x, ridge, rafter_z(ridge)), (x, yn, rafter_z(yn)))
 
+    # Haunches deepen the rafter at the eaves (10% of the span) and at the apex.
+    if s.haunches:
+        hd = size["haunch"].depth
+        span = yn - ys
+        for x in layout.frame_x:
+            for y0, y1 in ((ys, ys + 0.1 * span), (yn, yn - 0.1 * span)):
+                z0 = rafter_z(y0) - rd / 2 - hd / 2
+                z1 = rafter_z(y1) - rd / 2 - hd / 2
+                add("haunch", (x, y0, z0), (x, y1, z1))
+            for y0, y1 in ((ridge - 0.04 * span, ridge), (ridge, ridge + 0.04 * span)):
+                add(
+                    "haunch",
+                    (x, y0, rafter_z(y0) - rd / 2 - hd / 4),
+                    (x, y1, rafter_z(y1) - rd / 2 - hd / 4),
+                )
+
+    # Optional internal column line under the ridge (two-span frame).
+    if s.internal_columns:
+        for x in layout.frame_x:
+            add("internal_column", (x, ridge, ffl), (x, ridge, rafter_z(ridge) - rd / 2))
+            members.append(
+                Member(
+                    "foundation",
+                    (x, ridge, pad_top - pad.depth),
+                    (x, ridge, pad_top),
+                    pad.width,
+                    pad.width,
+                )
+            )
+
     # Gable-end wind columns on the first and last frames.
     for x in (layout.frame_x[0], layout.frame_x[-1]):
         for y in layout.gable_y:
@@ -117,10 +160,17 @@ def generate_frame(cfg: BuildingConfig, layout: FrameLayout) -> list[Member]:
                 if z < min(column_top(ya), column_top(yb)) - 0.3:
                     add("girt", (x, ya, z), (x, yb, z))
 
-    # Cross bracing in the end bays: roof planes and both side walls.
+    # Cross bracing in the end bays, plus an intermediate braced bay at least every
+    # ``bracing_spacing_m`` so wind and restraint forces have a short path to the ground.
     if s.brace_end_bays and len(layout.frame_x) >= 2:
         fx = layout.frame_x
-        for xa, xb in {(fx[0], fx[1]), (fx[-2], fx[-1])}:
+        braced = {0, len(fx) - 2}
+        last = fx[0]
+        for i in range(1, len(fx) - 2):
+            if fx[i + 1] - last > s.bracing_spacing_m:
+                braced.add(i)
+                last = fx[i + 1]
+        for xa, xb in {(fx[i], fx[i + 1]) for i in sorted(braced)}:
             for y0, y1 in ((ys, ridge), (ridge, yn)):
                 add("bracing", (xa, y0, rafter_z(y0)), (xb, y1, rafter_z(y1)))
                 add("bracing", (xa, y1, rafter_z(y1)), (xb, y0, rafter_z(y0)))
@@ -141,3 +191,51 @@ def schedule(members: list[Member]) -> dict[str, dict[str, float]]:
         k: {"count": v["count"], "length_m": round(v["length_m"], 1)}
         for k, v in sorted(out.items(), key=lambda kv: KINDS.index(kv[0]))
     }
+
+
+def mezzanine_members(cfg: BuildingConfig, grid_m: float = 6.0) -> list[Member]:
+    """Beams on a regular grid and columns under a mezzanine zone."""
+    if cfg.levels.mezzanine is None or cfg.structure is None:
+        return []
+    size = cfg.structure.sizes
+    out: list[Member] = []
+    top = cfg.levels.mezzanine - 0.2
+    for z in cfg.mezzanine_zones:
+        nx = max(1, round(z.width / grid_m))
+        ny = max(1, round(z.depth / grid_m))
+        xs = [z.xmin + z.width * i / nx for i in range(nx + 1)]
+        ys = [z.ymin + z.depth * j / ny for j in range(ny + 1)]
+        b = size["mezz_beam"]
+        for y in ys:
+            out.append(
+                Member(
+                    "mezz_beam",
+                    (xs[0], y, top - b.depth / 2),
+                    (xs[-1], y, top - b.depth / 2),
+                    b.width,
+                    b.depth,
+                )
+            )
+        for x in xs:
+            out.append(
+                Member(
+                    "mezz_beam",
+                    (x, ys[0], top - b.depth / 2),
+                    (x, ys[-1], top - b.depth / 2),
+                    b.width,
+                    b.depth,
+                )
+            )
+        c = size["mezz_column"]
+        for x in xs[1:-1] or xs:
+            for y in ys[1:-1] or ys:
+                out.append(
+                    Member(
+                        "mezz_column",
+                        (x, y, cfg.levels.ffl),
+                        (x, y, top - b.depth),
+                        c.width,
+                        c.depth,
+                    )
+                )
+    return out

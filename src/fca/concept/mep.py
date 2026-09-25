@@ -38,6 +38,7 @@ LUX = {
     "office": 500,
     "amenity": 200,
     "utility": 200,
+    "circulation": 150,
 }
 LOAD_W_M2 = {
     "production": 250,
@@ -47,7 +48,51 @@ LOAD_W_M2 = {
     "office": 60,
     "amenity": 40,
     "utility": 150,
+    "circulation": 10,
 }
+
+
+def wet_outlets(name: str, category: str, area: float) -> int:
+    """Water outlets (basins, WCs, showers, taps, sinks) a room needs, by room type."""
+    n = name.lower()
+    if "changing" in n or "toilet" in n:
+        return max(3, math.ceil(area / 5))
+    if "hygiene" in n or "hand wash" in n:
+        return max(3, math.ceil(area / 3))
+    if "ablution" in n:
+        return max(4, math.ceil(area / 5))
+    if "dining" in n or "utensil" in n:
+        return 4
+    if "qa" in n or "laboratory" in n:
+        return 3
+    if "sample" in n or "first aid" in n:
+        return 1
+    if category == "production":
+        return max(1, math.ceil(area / 150))
+    return 0
+
+
+def floor_drains(name: str, category: str, area: float) -> int:
+    """Floor gullies a room needs, by room type."""
+    n = name.lower()
+    if "changing" in n or "toilet" in n:
+        return max(2, math.ceil(area / 15))
+    if any(
+        k in n
+        for k in ("hygiene", "hand wash", "ablution", "dining", "utensil", "qa", "laboratory")
+    ):
+        return 2
+    if category == "production":
+        return max(1, math.ceil(area / 60))
+    if category == "dispatch":
+        return max(1, math.ceil(area / 250))
+    if category == "cold":
+        return 1  # condensate / wash drain outside the cold room
+    if any(k in n for k in ("compressor", "co2", "maintenance")):
+        return max(1, math.ceil(area / 80))
+    return 0
+
+
 TRANSFORMERS_KVA = (315, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150)
 GENERATORS_KVA = (200, 250, 400, 500, 630, 800, 1000, 1250, 1600)
 UTILISATION = 0.55  # utilisation x maintenance factor for lighting counts
@@ -134,7 +179,11 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
     strip_mid = (b.ymin + hall_y0) / 2
     hall = [r for r in lay.rooms if r.rect.ymin >= hall_y0 - 1e-6]
     strip = [r for r in lay.rooms if r not in hall]
-    util = next((r for r in strip if r.category == "utility"), strip[-1])
+    util = next(
+        (r for r in strip if r.name.lower().startswith("lt panel")),
+        next((r for r in strip if r.category == "utility"), strip[-1]),
+    )
+    comp = next((r for r in strip if "compressor" in r.name.lower()), util)
     ux, _ = _centre(util)
     staff = values["staff_per_shift"]
     shifts = values["shifts_per_day"]
@@ -301,12 +350,9 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         63,
     )
     outlets = 0
-    wet = {"Changing and hygiene": math.ceil(staff / 6), "Dining and prayer": 6, "QA laboratory": 3}
     for r in lay.rooms:
         cx, cy = _centre(r)
-        n = wet.get(r.name)
-        if n is None and r.category == "production":
-            n = max(1, math.ceil(r.area_m2 / 150))
+        n = wet_outlets(r.name, r.category, r.area_m2)
         if not n:
             continue
         outlets += n
@@ -342,25 +388,19 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         "nr",
         outlets,
         "plumbing.outlet",
-        f"Hygiene/changing 1 per 6 staff ({staff}); production 1 per 150 m²; dining 6; lab 3",
+        "By room type: changing 1 per 5 m², hygiene stations 1 per 3 m², ablution 1 per 5 m², "
+        "production 1 per 150 m², dining 4, lab 3",
     )
 
     # ---------------- Drainage ----------------
-    per = {"production": 60, "dispatch": 250, "utility": 80}
-    fixed = {"Changing and hygiene": None, "Dining and prayer": 3, "QA laboratory": 2}
     main_y = b.ymin - 2.0
     hall_col_y = (hall_y0 + b.ymax) / 2
     sewer = (b.xmax - 3.0, 0.5)
     drains = 0
     branch_len = 0.0
     for r in lay.rooms:
-        if r.name in fixed:
-            n = fixed[r.name] or math.ceil(r.area_m2 / 15)
-        elif r.category in per:
-            n = max(1, math.ceil(r.area_m2 / per[r.category]))
-        elif r.category == "cold":
-            n = 1  # condensate / wash drain outside the cold room
-        else:
+        n = floor_drains(r.name, r.category, r.area_m2)
+        if not n:
             continue
         pts = _grid(r, n, ffl + 0.02, margin=1.2)
         drains += len(pts)
@@ -405,7 +445,8 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         "nr",
         drains,
         "drainage.floor_drain",
-        "Production 1 per 60 m², changing 1 per 15 m², dispatch 1 per 250 m², cold rooms 1 each",
+        "Production 1 per 60 m², changing 1 per 15 m², hygiene/ablution/dining/lab 2 each, "
+        "dispatch 1 per 250 m², cold rooms 1 each",
     )
     for size, length in sorted(by_size.items()):
         m.qty(
@@ -587,7 +628,10 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         x1 = max(r.rect.xmax for r in prod) - 1
         z = eaves - 2.6
         m.item(
-            "air", "Air compressor and dryer", (ux + 1.5, hall_y0 - 1.5, ffl + 0.9), (2.2, 1.2, 1.8)
+            "air",
+            "Air compressor and dryer",
+            (_centre(comp)[0], _centre(comp)[1], ffl + 0.9),
+            (2.2, 1.2, 1.8),
         )
         m.route(
             "air",
@@ -605,8 +649,8 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
             "air",
             "Air feeder",
             [
-                (ux + 1.5, hall_y0 - 1.5, ffl + 2.0),
-                (ux + 1.5, hall_y0 + 2, z),
+                (_centre(comp)[0], _centre(comp)[1], ffl + 2.0),
+                (_centre(comp)[0], hall_y0 + 2, z),
                 (x1, hall_y0 + 2, z),
             ],
             40,

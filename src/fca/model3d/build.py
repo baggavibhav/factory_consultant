@@ -35,6 +35,7 @@ MATERIALS: dict[str, tuple[tuple[float, float, float, float], float, float]] = {
     "zone_office": ((0.78, 0.76, 0.90, 1.0), 0.0, 0.9),
     "zone_amenity": ((0.90, 0.78, 0.86, 1.0), 0.0, 0.9),
     "zone_utility": ((0.75, 0.75, 0.73, 1.0), 0.0, 0.9),
+    "zone_circulation": ((0.86, 0.86, 0.84, 1.0), 0.0, 0.9),
     "mep_electrical": ((0.93, 0.70, 0.05, 1.0), 0.3, 0.5),
     "mep_water": ((0.18, 0.53, 0.87, 1.0), 0.3, 0.4),
     "mep_drainage": ((0.45, 0.33, 0.20, 1.0), 0.1, 0.7),
@@ -46,6 +47,14 @@ MATERIALS: dict[str, tuple[tuple[float, float, float, float], float, float]] = {
     "str_column": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
     "str_gable_column": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
     "str_rafter": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
+    "str_haunch": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
+    "str_internal_column": ((0.78, 0.33, 0.16, 1.0), 0.6, 0.45),
+    "str_mezz_beam": ((0.55, 0.45, 0.35, 1.0), 0.6, 0.45),
+    "str_mezz_column": ((0.55, 0.45, 0.35, 1.0), 0.6, 0.45),
+    "plinth": ((0.70, 0.70, 0.68, 1.0), 0.0, 0.95),
+    "openings": ((0.30, 0.36, 0.42, 1.0), 0.4, 0.5),
+    "exits": ((0.16, 0.62, 0.36, 1.0), 0.2, 0.5),
+    "silos": ((0.80, 0.82, 0.84, 1.0), 0.7, 0.35),
     "str_eave_beam": ((0.85, 0.52, 0.20, 1.0), 0.6, 0.45),
     "str_purlin": ((0.35, 0.47, 0.60, 1.0), 0.6, 0.45),
     "str_girt": ((0.35, 0.47, 0.60, 1.0), 0.6, 0.45),
@@ -205,12 +214,50 @@ class ModelBuilder:
             z + 0.03,
         )
 
+    def add_plinth(self, height: float = 1.2, thickness: float = 0.25) -> None:
+        """Hygienic plinth wall around the building base (concrete band under the cladding)."""
+        e, top = self.cfg.envelope, self.cfg.levels.ffl + height
+        t = thickness
+        self.box("plinth", e.xmin - t, e.ymin - t, 0.0, e.xmax + t, e.ymin, top)
+        self.box("plinth", e.xmin - t, e.ymax, 0.0, e.xmax + t, e.ymax + t, top)
+        self.box("plinth", e.xmin - t, e.ymin, 0.0, e.xmin, e.ymax, top)
+        self.box("plinth", e.xmax, e.ymin, 0.0, e.xmax + t, e.ymax, top)
+
+    def cylinder(self, name: str, x: float, y: float, z0: float, z1: float, r: float) -> None:
+        c = trimesh.creation.cylinder(radius=r, height=z1 - z0, sections=24)
+        v = np.asarray(c.vertices) + np.array([x, y, (z0 + z1) / 2])
+        self._part(name).add(v, np.asarray(c.faces))
+
+    def add_openings(self, openings: list) -> None:
+        """Dock doors, fire exits, entrance and silos from a concept layout."""
+        ffl = self.cfg.levels.ffl
+        for o in openings:
+            if o.kind == "silo":
+                self.cylinder("silos", o.x, o.y, 0.0, 14.0, 1.7)
+                continue
+            w, h, part = {
+                "dock_in": (3.0, 3.2, "openings"),
+                "dock_out": (3.0, 3.2, "openings"),
+                "fire_exit": (1.8, 2.2, "exits"),
+                "entrance": (2.4, 2.6, "openings"),
+            }[o.kind]
+            t = 0.35
+            if o.side in ("west", "east"):
+                self.box(part, o.x - t / 2, o.y - w / 2, ffl, o.x + t / 2, o.y + w / 2, ffl + h)
+            else:
+                self.box(part, o.x - w / 2, o.y - t / 2, ffl, o.x + w / 2, o.y + t / 2, ffl + h)
+
+    def add_items(self, part: str, items: list) -> None:
+        """Boxes given as (x, y, z-centre, w, d, h)."""
+        for x, y, z, w, d, h in items:
+            self.box(part, x - w / 2, y - d / 2, z - h / 2, x + w / 2, y + d / 2, z + h / 2)
+
     def add_mep(self, mep) -> None:
         """Concept MEP: routes as thin members, equipment and fittings as boxes."""
         for r in mep.routes:
             tray = "tray" in r.kind.lower()
-            w = 0.3 if tray else max(r.size_mm / 1000, 0.06)
-            d = 0.08 if tray else w
+            w = 0.4 if tray else max(r.size_mm / 1000 * 1.6, 0.14)  # drawn larger to be readable
+            d = 0.12 if tray else w
             for a, b in zip(r.points, r.points[1:], strict=False):
                 self.member(f"mep_{r.service}", Member(r.service, a, b, w, d))
         for it in mep.items:

@@ -46,6 +46,10 @@ DEFAULT_SIZES = {
     "girt": MemberSize(0.07, 0.2),
     "bracing": MemberSize(0.03, 0.03),
     "foundation": MemberSize(1.8, 0.6),
+    "haunch": MemberSize(0.2, 0.45),
+    "internal_column": MemberSize(0.3, 0.3),
+    "mezz_beam": MemberSize(0.17, 0.36),
+    "mezz_column": MemberSize(0.2, 0.2),
 }
 
 
@@ -62,6 +66,9 @@ class StructureConfig:
     purlin_spacing: float = 1.5
     girt_heights: tuple[float, ...] = (2.5, 5.0, 7.0)
     brace_end_bays: bool = True
+    bracing_spacing_m: float = 45.0  # extra braced bay at least this often along the building
+    internal_columns: bool = False  # column line at the ridge (two-span frame)
+    haunches: bool = True  # haunched rafters at eaves and apex
     sizes: dict[str, MemberSize] = field(default_factory=lambda: dict(DEFAULT_SIZES))
     sizes_are_indicative: bool = True
 
@@ -111,6 +118,9 @@ def load_building_config(path: Path) -> BuildingConfig:
             purlin_spacing=s.get("purlin_spacing", 1.5),
             girt_heights=tuple(s.get("girt_heights", [2.5, 5.0, 7.0])),
             brace_end_bays=s.get("brace_end_bays", True),
+            bracing_spacing_m=s.get("bracing_spacing_m", 45.0),
+            internal_columns=s.get("internal_columns", False),
+            haunches=s.get("haunches", True),
             sizes=sizes,
             sizes_are_indicative=s.get("sizes_are_indicative", True),
         )

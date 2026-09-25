@@ -64,5 +64,6 @@ export const ZONE_COLOURS: Record<string, string> = {
   office: "#c7c2e6",
   amenity: "#e6c7db",
   utility: "#bfbfba",
+  circulation: "#dcdcd6",
 };
 export const M2_PER_SQFT = 0.09290304;

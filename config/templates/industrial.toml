@@ -9,22 +9,150 @@ target_depth_m = 40.0        # preferred clear span (building depth)
 min_depth_m = 24.0
 max_depth_m = 45.0           # beyond this a single clear span is uneconomic
 bay_m = 9.0                  # target frame spacing
-roof_pitch_deg = 3.0
-street_strip_depth_m = [8.0, 14.0]   # offices and amenities strip, min and max depth
+roof_pitch_deg = 5.0
 
 [site]
-setback_front_m = 10.0       # street side: parking and pedestrian access
+setback_front_m = 10.0      # street side: parking and pedestrian access
 setback_rear_m = 6.0
-setback_west_m = 6.0
-setback_east_m = 15.0        # truck yard and loading side
+setback_west_m = 20.0       # goods-in yard: raw-material trucks and docks
+setback_east_m = 35.0       # dispatch apron: trucks turning and docking
 
-[strip]                      # rooms along the street side (areas in m²)
-office_m2_per_person = 10.0
-office_base_m2 = 20.0
-qa_lab_m2 = 30.0
-amenity_m2_per_staff = 1.6   # changing, toilets, hygiene stations, prayer, dining
-amenity_base_m2 = 40.0
-utilities_share = 0.035      # electrical, compressor, services (share of built-up area)
+[strip]
+corridor_m = 2.0           # corridor between the two rows of rooms
+row_min_m = 5.0
+row_max_m = 8.0
+
+# Rooms along the street side. row: "south" (street) or "north" (next to the hall).
+# Area = base_m2 + per_person x people, where people is the staff group:
+# male / female production staff, office staff, or all production staff.
+# per_area_m2 adds a share of the built-up area (plant rooms).
+
+[[strip_room]]
+name = "Reception and lobby"
+category = "office"
+row = "south"
+base_m2 = 40
+
+[[strip_room]]
+name = "Offices"
+category = "office"
+row = "south"
+base_m2 = 20
+per_person = 10
+people = "office"
+
+[[strip_room]]
+name = "Production office"
+category = "office"
+row = "south"
+base_m2 = 20
+
+[[strip_room]]
+name = "QA laboratory"
+category = "office"
+row = "south"
+base_m2 = 30
+requires = "qa_lab"
+
+[[strip_room]]
+name = "Sample test"
+category = "office"
+row = "south"
+base_m2 = 15
+requires = "qa_lab"
+
+[[strip_room]]
+name = "First aid"
+category = "amenity"
+row = "south"
+base_m2 = 12
+
+[[strip_room]]
+name = "Server and telephone room"
+category = "utility"
+row = "south"
+base_m2 = 12
+
+[[strip_room]]
+name = "Maintenance and store"
+category = "utility"
+row = "south"
+base_m2 = 40
+
+[[strip_room]]
+name = "LT panel room"
+category = "utility"
+row = "south"
+base_m2 = 20
+per_area_m2 = 0.002
+
+[[strip_room]]
+name = "CO2 and services"
+category = "utility"
+row = "south"
+base_m2 = 20
+
+[[strip_room]]
+name = "Male prayer and ablution"
+category = "amenity"
+row = "north"
+base_m2 = 15
+per_person = 0.35
+people = "male"
+
+[[strip_room]]
+name = "Male changing, toilets and showers"
+category = "amenity"
+row = "north"
+base_m2 = 15
+per_person = 1.0
+people = "male"
+
+[[strip_room]]
+name = "Male hygiene station"
+category = "amenity"
+row = "north"
+base_m2 = 8
+per_person = 0.2
+people = "male"
+
+[[strip_room]]
+name = "Female hygiene station"
+category = "amenity"
+row = "north"
+base_m2 = 8
+per_person = 0.2
+people = "female"
+
+[[strip_room]]
+name = "Female changing, toilets and showers"
+category = "amenity"
+row = "north"
+base_m2 = 15
+per_person = 1.0
+people = "female"
+
+[[strip_room]]
+name = "Female prayer and ablution"
+category = "amenity"
+row = "north"
+base_m2 = 10
+per_person = 0.35
+people = "female"
+
+[[strip_room]]
+name = "Dining"
+category = "amenity"
+row = "north"
+base_m2 = 20
+per_person = 0.5
+people = "all"
+
+[[strip_room]]
+name = "Compressor room"
+category = "utility"
+row = "north"
+base_m2 = 25
 
 [production]
 min_m2_per_line = 400.0      # warn if production area is below this per line

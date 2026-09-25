@@ -38,6 +38,18 @@ class Brief(BaseModel):
     qa_lab: bool | None = None
     mezzanine: bool | None = None
     clear_height_m: float | None = Field(default=None, ge=3, le=20)
+    female_staff_share: float | None = Field(default=None, ge=0, le=1)
+    flour_silos: bool | None = None
+    # Design options (edit and rebuild to compare)
+    structure_option: Literal["clear_span", "two_span"] | None = None
+    span_m: float | None = Field(default=None, ge=12, le=80, description="Building depth")
+    bay_m: float | None = Field(default=None, ge=5, le=12)
+    roof_pitch_deg: float | None = Field(default=None, ge=2, le=15)
+    goods_in_yard_m: float | None = Field(default=None, ge=0, le=80)
+    dispatch_yard_m: float | None = Field(default=None, ge=0, le=100)
+    zone_sizes: dict[str, float] = Field(
+        default_factory=dict, description="Hall zone size multipliers, e.g. {'Cold store': 1.5}"
+    )
 
 
 def resolve(brief: Brief) -> tuple[dict, list[str]]:
@@ -79,6 +91,15 @@ def resolve(brief: Brief) -> tuple[dict, list[str]]:
         if brief.plant_type == "industrial"
         else "clear height of 5.5 m under the roof",
     )
+    default("female_staff_share", 0.3, "30% of production staff are women (separate facilities)")
+    default(
+        "flour_silos",
+        brief.plant_type == "industrial",
+        "two outdoor flour silos" if brief.plant_type == "industrial" else "no flour silos",
+    )
+    default("structure_option", "clear_span", "clear-span portal frames")
+    for key in ("zone_sizes",):
+        v[key] = {k: max(0.3, min(3.0, float(x))) for k, x in (v[key] or {}).items()}
     if brief.plot_width_m is None or brief.plot_depth_m is None:
         notes.append("plot sized to fit the building with standard setbacks")
     return v, notes

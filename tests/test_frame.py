@@ -70,3 +70,18 @@ def test_girts_below_eaves(members):
     for m in members:
         if m.kind == "girt":
             assert m.start[2] < 7.0
+
+
+def test_haunches_and_intermediate_bracing(cfg):
+    from dataclasses import replace
+
+    long = FrameLayout(
+        frame_x=tuple(float(x) for x in range(0, 121, 10)), south_y=0, north_y=20, gable_y=()
+    )
+    members = generate_frame(
+        replace(cfg, structure=replace(cfg.structure, bracing_spacing_m=45)), long
+    )
+    s = schedule(members)
+    assert s["haunch"]["count"] == 13 * 4  # two eaves + two apex pieces per frame
+    braced_bays = s["bracing"]["count"] // 8
+    assert braced_bays >= 4  # both ends plus intermediate bays in a 120 m building

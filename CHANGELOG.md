@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0 — 24 Sep 2026
+### Added
+- Design options in the brief (structure option, span, bay, roof pitch, goods-in yard, dispatch
+  apron, zone sizes, women in production, flour silos) and a "What changed" comparison after
+  every rebuild.
+- 2D plan view: rooms, walls, columns, openings and MEP services with legend, solo mode,
+  tooltips (size, length, underground), zoom and pan.
+- Room outlines read from DWG drawings (door-gap closing, polygonisation, estimated open-plan
+  zones); Rooms tab; per-room finishes and fittings in the BOQ for drawing projects.
+- Gulf amenity program for concepts: separate male/female changing, hygiene stations, prayer
+  and ablution, dining, first aid, QA and sample test, server room, LT panel, compressor and
+  CO2 rooms, laid out in two rows with a corridor.
+- Design review fixes: goods-in yard (20 m) and dispatch apron (35 m) with docks and levellers,
+  fire exits, main entrance, flour silos; haunched rafters; 5° default pitch; sections sized by
+  span and purlins by bay; intermediate bracing about every 45 m; optional internal column
+  line; ground beams and 1.2 m hygienic plinth wall; mezzanine steel; cold-room ceiling hangers.
+- Room-type rules for water outlets and floor drains; no drains in electrical rooms.
+### Changed
+- MEP routes drawn thicker in 3D; new Doors, docks and exits layer.
+- Brief form fields align regardless of hint text.
+
 ## 0.5.0 — 24 Sep 2026
 ### Added
 - Concept MEP: electrical (supply, substation, generator, LV board, distribution boards, trays,

@@ -6,19 +6,20 @@ import { Loader2 } from "lucide-react";
 import type { Label } from "../lib/api";
 
 export type LayerKey =
-  | "zones" | "roof" | "external" | "internal" | "cold" | "mezz" | "site"
+  | "zones" | "openings" | "roof" | "external" | "internal" | "cold" | "mezz" | "site"
   | "frames" | "secondary" | "bracing" | "foundations"
   | "electrical" | "water" | "drainage" | "fire" | "hvac" | "air" | "gas";
 
 export const LAYERS: { key: LayerKey; label: string; group: "Architecture" | "Structure" | "Services"; swatch: string; nodes: string[] }[] = [
   { key: "zones", label: "Floor zones", group: "Architecture", swatch: "#f2d48c", nodes: ["zone_production", "zone_storage", "zone_cold", "zone_dispatch", "zone_office", "zone_amenity", "zone_utility"] },
   { key: "roof", label: "Roof sheeting", group: "Architecture", swatch: "#9aa3ad", nodes: ["roof"] },
-  { key: "external", label: "External walls", group: "Architecture", swatch: "#d6cfbf", nodes: ["walls_external"] },
+  { key: "external", label: "External walls", group: "Architecture", swatch: "#d6cfbf", nodes: ["walls_external", "plinth"] },
   { key: "internal", label: "Internal walls", group: "Architecture", swatch: "#ede8dc", nodes: ["walls_internal"] },
   { key: "cold", label: "Cold-room panels", group: "Architecture", swatch: "#8fbad4", nodes: ["cold_panels"] },
-  { key: "mezz", label: "Mezzanine", group: "Architecture", swatch: "#c7b28f", nodes: ["mezzanine"] },
-  { key: "site", label: "Site and outbuildings", group: "Architecture", swatch: "#b8b2a3", nodes: ["boundary_wall", "outbuildings"] },
-  { key: "frames", label: "Portal frames", group: "Structure", swatch: "#c7542a", nodes: ["str_column", "str_gable_column", "str_rafter", "str_eave_beam"] },
+  { key: "mezz", label: "Mezzanine", group: "Architecture", swatch: "#c7b28f", nodes: ["mezzanine", "str_mezz_beam", "str_mezz_column"] },
+  { key: "site", label: "Site and outbuildings", group: "Architecture", swatch: "#b8b2a3", nodes: ["boundary_wall", "outbuildings", "silos"] },
+  { key: "openings", label: "Doors, docks and exits", group: "Architecture", swatch: "#1f9d55", nodes: ["openings", "exits"] },
+  { key: "frames", label: "Portal frames", group: "Structure", swatch: "#c7542a", nodes: ["str_column", "str_internal_column", "str_gable_column", "str_rafter", "str_haunch", "str_eave_beam"] },
   { key: "secondary", label: "Purlins and girts", group: "Structure", swatch: "#5a7899", nodes: ["str_purlin", "str_girt"] },
   { key: "bracing", label: "Bracing", group: "Structure", swatch: "#33383f", nodes: ["str_bracing"] },
   { key: "foundations", label: "Foundation pads", group: "Structure", swatch: "#9e9e99", nodes: ["str_foundation"] },
@@ -33,7 +34,7 @@ export const LAYERS: { key: LayerKey; label: string; group: "Architecture" | "St
 export const SERVICE_KEYS: LayerKey[] = ["electrical", "water", "drainage", "fire", "hvac", "air", "gas"];
 
 export type ViewName = "iso" | "structure" | "services" | "plan" | "street" | "inside";
-const WALL_NODES = ["walls_external", "walls_internal", "cold_panels", "outbuildings"];
+const WALL_NODES = ["walls_external", "walls_internal", "cold_panels", "outbuildings", "plinth"];
 
 interface Props {
   url: string;

@@ -68,12 +68,13 @@ def test_oversized_request_is_reduced_with_warning(tmp_path):
     values, _ = resolve(
         Brief(plant_type="industrial", built_up_area_m2=5000, plot_width_m=80, plot_depth_m=60)
     )
-    assert max_area_on_plot(values, load_template("industrial")) == pytest.approx(59 * 44)
+    # 80 m frontage - 20 m goods-in yard - 35 m dispatch apron = 25 m; 60 - 10 - 6 = 44 m deep
+    assert max_area_on_plot(values, load_template("industrial")) == pytest.approx(25 * 44)
     result = build_concept(
         Brief(plant_type="industrial", built_up_area_m2=5000, plot_width_m=80, plot_depth_m=60),
         tmp_path,
     )
-    assert result.facts["footprint_m2"] == 2596
+    assert result.facts["footprint_m2"] == 1100
     assert "does not fit" in result.warnings[0]
 
 
@@ -83,3 +84,80 @@ def test_tiny_plot_is_rejected():
     )
     with pytest.raises(ValueError, match="too small"):
         max_area_on_plot(values, load_template("industrial"))
+
+
+def test_gulf_amenity_rooms_split_by_gender():
+    lay, _, _ = _layout(
+        plant_type="industrial", built_up_area_m2=5000, staff_per_shift=100, female_staff_share=0.4
+    )
+    names = {r.name: r for r in lay.rooms}
+    for n in (
+        "Male changing, toilets and showers",
+        "Female changing, toilets and showers",
+        "Male prayer and ablution",
+        "Female prayer and ablution",
+        "Male hygiene station",
+        "Female hygiene station",
+        "Corridor",
+    ):
+        assert n in names
+    assert (
+        names["Male changing, toilets and showers"].area_m2
+        > names["Female changing, toilets and showers"].area_m2
+    )  # 60 men vs 40 women
+
+
+def test_no_female_rooms_when_no_women():
+    lay, _, _ = _layout(plant_type="industrial", built_up_area_m2=4000, female_staff_share=0)
+    assert not any(r.name.startswith("Female") for r in lay.rooms)
+
+
+def test_yards_docks_and_exits():
+    lay, _, _ = _layout(plant_type="industrial", built_up_area_m2=5000)
+    assert lay.building.xmin == 20 and lay.plot.xmax - lay.building.xmax == pytest.approx(35)
+    kinds = [o.kind for o in lay.openings]
+    assert kinds.count("dock_in") >= 1 and kinds.count("dock_out") >= 2
+    assert kinds.count("fire_exit") >= 4 and "silo" in kinds
+
+
+def test_short_yards_warn():
+    lay, _, _ = _layout(
+        plant_type="industrial", built_up_area_m2=3000, goods_in_yard_m=8, dispatch_yard_m=12
+    )
+    text = " ".join(lay.warnings)
+    assert "goods-in yard" in text and "dispatch apron" in text
+
+
+def test_zone_size_editing_changes_areas():
+    base, _, _ = _layout(plant_type="industrial", built_up_area_m2=4000)
+    bigger, _, _ = _layout(
+        plant_type="industrial", built_up_area_m2=4000, zone_sizes={"Cold store": 2.0}
+    )
+    area = lambda lay, n: next(r.area_m2 for r in lay.rooms if r.name == n)  # noqa: E731
+    assert area(bigger, "Cold store") > area(base, "Cold store") * 1.6
+
+
+def test_two_span_adds_internal_columns(tmp_path):
+    one = build_concept(Brief(plant_type="industrial", built_up_area_m2=4000), tmp_path / "a")
+    two = build_concept(
+        Brief(plant_type="industrial", built_up_area_m2=4000, structure_option="two_span"),
+        tmp_path / "b",
+    )
+    assert "internal_column" not in one.member_schedule
+    assert (
+        two.member_schedule["internal_column"]["count"]
+        == one.member_schedule["column"]["count"] // 2
+    )
+    assert two.facts["quantities"]["steel_t"] < one.facts["quantities"]["steel_t"]  # shorter spans
+
+
+def test_design_overrides_apply():
+    lay, _, _ = _layout(
+        plant_type="industrial", built_up_area_m2=4000, span_m=30, bay_m=7.5, roof_pitch_deg=8
+    )
+    assert lay.building.depth == pytest.approx(30)
+    bays = [b - a for a, b in zip(lay.frame.frame_x, lay.frame.frame_x[1:], strict=False)]
+    assert 6.5 < bays[0] < 8.5
+    assert lay.config.levels.ridge - lay.config.levels.eaves_south == pytest.approx(
+        15 * 0.1405, abs=0.05
+    )  # tan(8°) × half the span

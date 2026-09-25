@@ -6,22 +6,104 @@ target_depth_m = 30.0
 min_depth_m = 18.0
 max_depth_m = 40.0
 bay_m = 7.5
-roof_pitch_deg = 3.0
-street_strip_depth_m = [6.0, 10.0]
+roof_pitch_deg = 5.0
 
 [site]
-setback_front_m = 8.0
+setback_front_m = 8.0      # street side: parking and pedestrian access
 setback_rear_m = 5.0
-setback_west_m = 10.0        # egg receiving yard
-setback_east_m = 12.0        # dispatch yard
+setback_west_m = 18.0       # goods-in yard: raw-material trucks and docks
+setback_east_m = 25.0       # dispatch apron: trucks turning and docking
 
 [strip]
-office_m2_per_person = 9.0
-office_base_m2 = 12.0
-qa_lab_m2 = 15.0
-amenity_m2_per_staff = 1.6
-amenity_base_m2 = 25.0
-utilities_share = 0.04
+corridor_m = 1.8
+row_min_m = 3.5
+row_max_m = 7.0
+
+[[strip_room]]
+name = "Reception"
+category = "office"
+row = "south"
+base_m2 = 20
+
+[[strip_room]]
+name = "Offices"
+category = "office"
+row = "south"
+base_m2 = 12
+per_person = 9
+people = "office"
+
+[[strip_room]]
+name = "QA laboratory"
+category = "office"
+row = "south"
+base_m2 = 15
+requires = "qa_lab"
+
+[[strip_room]]
+name = "First aid"
+category = "amenity"
+row = "south"
+base_m2 = 8
+
+[[strip_room]]
+name = "Maintenance and store"
+category = "utility"
+row = "south"
+base_m2 = 15
+
+[[strip_room]]
+name = "LT panel room"
+category = "utility"
+row = "south"
+base_m2 = 12
+per_area_m2 = 0.003
+
+[[strip_room]]
+name = "Male changing and toilets"
+category = "amenity"
+row = "north"
+base_m2 = 10
+per_person = 1.0
+people = "male"
+
+[[strip_room]]
+name = "Hygiene station"
+category = "amenity"
+row = "north"
+base_m2 = 6
+per_person = 0.2
+people = "all"
+
+[[strip_room]]
+name = "Female changing and toilets"
+category = "amenity"
+row = "north"
+base_m2 = 8
+per_person = 1.0
+people = "female"
+
+[[strip_room]]
+name = "Prayer and ablution"
+category = "amenity"
+row = "north"
+base_m2 = 10
+per_person = 0.35
+people = "all"
+
+[[strip_room]]
+name = "Dining"
+category = "amenity"
+row = "north"
+base_m2 = 12
+per_person = 0.5
+people = "all"
+
+[[strip_room]]
+name = "Compressor room"
+category = "utility"
+row = "north"
+base_m2 = 12
 
 [production]
 min_m2_per_line = 250.0

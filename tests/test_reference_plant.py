@@ -86,3 +86,24 @@ def test_build_3d_structure(tmp_path):
 def geometry_bbox():
     config = load_config(REPO_ROOT / "config" / "plants" / "ref-plant-01.toml")
     return config.building
+
+
+def test_rooms_read_from_drawing():
+    from fca.ingestion.rooms import extract_rooms
+
+    config = load_config(REPO_ROOT / "config" / "plants" / "ref-plant-01.toml")
+    rooms = extract_rooms(read_dxf(DXF), config, config.building)
+    names = [r.name for r in rooms]
+    assert len(rooms) >= 40
+    for n in (
+        "FEMALE HYGIENE STATION",
+        "MALE HYGIENE STATION",
+        "QA / QC LABORATORY",
+        "FIRST AID ROOM",
+        "COLD STORE -18°C",
+    ):
+        assert n in names
+    exact = {r.name: r for r in rooms if not r.estimated}
+    assert 10 < exact["FEMALE HYGIENE STATION"].area_m2 < 16
+    assert 110 < exact["COLD STORE -18°C"].area_m2 < 135
+    assert any(r.estimated and r.name.startswith("PRODUCTION AREA") for r in rooms)

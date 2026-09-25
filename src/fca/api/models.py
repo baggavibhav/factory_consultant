@@ -62,6 +62,7 @@ class BuildInfo(BaseModel):
     duration_s: float
     facts: dict[str, Any]
     warnings: list[str] = []
+    changes: list[dict[str, Any]] = []
 
 
 class Event(BaseModel):

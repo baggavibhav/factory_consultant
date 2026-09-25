@@ -12,6 +12,9 @@ rebar = "Deformed high-yield rebar, ASTM A615 Grade 60 (or B500B)"
 mesh = "Welded steel fabric A393, two layers"
 rebar_kg_per_m3_pads = 80
 dpm = "1000-gauge polyethylene damp-proof membrane"
+ground_beam = "C32/40 SRC ground beam 400 x 600 mm linking pads, carrying the plinth wall"
+plinth = "Hygienic precast or blockwork plinth wall 1.2 m high, 200 mm, with coved internal junction"
+hangers = "Galvanised steel ceiling suspension hangers for insulated cold-room ceilings"
 
 [steel]
 grade = "Structural steel S355JR (EN 10025-2), hot-dip galvanised or two-coat epoxy primer + finish"
@@ -19,7 +22,15 @@ secondary = "Cold-formed galvanised Z-sections, S450GD+Z275"
 bolts = "Grade 8.8 HDG bolts"
 connection_allowance = 0.10   # add 10% for plates, bolts and connections
 
-[steel.profiles]              # member kind = [indicative section, kg per metre]
+# Main members are sized by span and purlins/girts by bay (indicative rules of thumb;
+# a structural engineer designs the real sections).
+# [max span or bay in metres, section, kg per metre]
+rafter_by_span = [[25.0, "UB 457x191x67", 67.1], [32.0, "UB 533x210x92", 92.1], [40.0, "UB 610x229x113", 113.0], [99.0, "UB 686x254x125", 125.2]]
+column_by_span = [[25.0, "UB 406x178x60", 60.1], [32.0, "UB 457x191x74", 74.3], [40.0, "UB 533x210x101", 101.0], [99.0, "UB 610x229x125", 125.1]]
+purlin_by_bay = [[6.0, "Z200 x 1.8 mm", 5.2], [7.5, "Z250 x 2.0 mm", 6.9], [9.5, "Z300 x 2.5 mm", 10.5], [99.0, "Z350 x 3.0 mm", 14.5]]
+haunch_factor = 1.4           # haunch steel per metre relative to the rafter section
+
+[steel.profiles]              # member kind = [indicative section, kg per metre] (fallbacks)
 column = ["UB 457x191x74", 74.3]
 gable_column = ["UB 305x165x40", 40.3]
 rafter = ["UB 533x210x92", 92.1]
@@ -27,6 +38,9 @@ eave_beam = ["UB 305x165x40", 40.3]
 purlin = ["Z200 x 2.0 mm", 5.8]
 girt = ["Z200 x 2.0 mm", 5.8]
 bracing = ["Rod M24 with turnbuckle", 3.6]
+internal_column = ["UC 305x305x97", 96.9]
+mezz_beam = ["UB 356x171x51", 51.0]
+mezz_column = ["UC 203x203x46", 46.1]
 
 [envelope]
 roof = "Insulated sandwich roof panel, PIR core 100 mm, 0.5 mm pre-painted steel skins, U ≤ 0.25"
@@ -44,6 +58,13 @@ cold_panel_blast = "Cold-room panel, PUR/PIR 200 mm, heated floor and door frame
 freezer_floor = "Insulated floor: XPS 150 mm, vapour barrier, heating mat, 150 mm wearing slab"
 mezzanine = "Composite steel deck mezzanine, 130 mm slab on steel beams"
 
+[openings]
+dock_door = "Insulated sectional overhead door 3.0 x 3.2 m with dock seal"
+dock_leveller = "Hydraulic dock leveller 2.0 x 2.5 m, 6 t, with bumpers"
+fire_exit = "Steel fire exit door, double leaf 1.8 x 2.2 m, panic hardware, 60 min rated"
+personnel_door = "Insulated steel personnel door with vision panel"
+silo = "Outdoor flour silo 60 t, stainless or coated steel, with pneumatic conveying and filter"
+
 [finishes]
 production = "Polyurethane cement floor, 9 mm, slip-resistant, with coved skirting"
 storage = "Power-floated concrete with surface hardener and sealer"
@@ -52,6 +73,7 @@ dispatch = "Power-floated concrete with hardener, heavy-duty"
 office = "Porcelain floor tiles 600x600"
 amenity = "Anti-slip porcelain tiles, R11"
 utility = "Power-floated concrete, sealed"
+circulation = "Anti-slip porcelain tiles, R10"
 
 [electrical]
 transformer = "Oil-immersed distribution transformer, 13.8/0.4 kV, utility-approved"

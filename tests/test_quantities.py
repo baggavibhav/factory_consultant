@@ -39,7 +39,9 @@ def test_slab_and_roof_follow_the_footprint(concept):
 def test_steel_tonnage_matches_member_lengths(concept):
     _, members, _, items = concept
     cols = sum(m.length for m in members if m.kind == "column")
-    assert _qty(items, "Portal frame columns") == pytest.approx(cols * 74.3 / 1000, rel=1e-3)
+    # 40 m clear span -> column section from the span table (UB 533x210x101, 101 kg/m)
+    assert _qty(items, "Portal frame columns") == pytest.approx(cols * 101.0 / 1000, rel=1e-3)
+    assert _qty(items, "Rafter haunches") > 0
     steel = sum(i.qty for i in items if i.section == "Structural steel frame")
     assert 15 < steel / 4 < 45  # kg/m² band typical of portal-frame plants (t per 1,000 m²)
 

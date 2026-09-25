@@ -34,7 +34,7 @@ export interface Boq {
   headline: { steel_t: number; concrete_m3: number; roof_m2: number; wall_m2: number; items: number };
   mep: Record<string, Record<string, number>>;
 }
-export interface ProgramRoom { name: string; category: string; area_m2: number; temp_c: number | null; width_m: number; depth_m: number }
+export interface ProgramRoom { name: string; category: string; area_m2: number; temp_c: number | null; width_m: number; depth_m: number; estimated?: boolean }
 export interface Brief {
   plant_type: PlantType;
   built_up_area_m2: number;
@@ -52,8 +52,28 @@ export interface Brief {
   qa_lab?: boolean | null;
   mezzanine?: boolean | null;
   clear_height_m?: number | null;
+  female_staff_share?: number | null;
+  flour_silos?: boolean | null;
+  structure_option?: "clear_span" | "two_span" | null;
+  span_m?: number | null;
+  bay_m?: number | null;
+  roof_pitch_deg?: number | null;
+  goods_in_yard_m?: number | null;
+  dispatch_yard_m?: number | null;
+  zone_sizes?: Record<string, number>;
 }
-export interface BuildInfo { id: string; started_at: string; finished_at: string; duration_s: number; facts: Facts; warnings: string[] }
+export interface Change { label: string; before: number; after: number; unit: string; change_pct: number | null }
+export interface BuildInfo { id: string; started_at: string; finished_at: string; duration_s: number; facts: Facts; warnings: string[]; changes?: Change[] }
+export interface Plan {
+  plot: [number, number, number, number];
+  building: [number, number, number, number];
+  walls: [number, number, number, number, string][];
+  rooms: { name: string; category: string; area_m2: number; estimated: boolean; points: [number, number][] }[];
+  columns: [number, number][];
+  openings: { kind: string; x: number; y: number; side: string }[];
+  routes: { service: string; kind: string; size_mm: number; length_m: number; underground: boolean; points: [number, number][] }[];
+  items: { service: string; kind: string; x: number; y: number; w: number; d: number }[];
+}
 export interface DrawingInfo { filename: string; kind: string; size_bytes: number; uploaded_at: string; dxf_filename: string | null }
 export interface ProjectEvent { at: string; kind: string; message: string }
 export interface Project {
@@ -110,7 +130,8 @@ export const api = {
   },
   saveBrief: (id: string, brief: Brief) =>
     request<Project>(`/api/projects/${id}/brief`, { method: "PUT", ...json(brief) }),
-  briefDefaults: (type: PlantType) => request<Record<string, number | boolean | null | string>>(`/api/brief-defaults/${type}`),
+  briefDefaults: (type: PlantType) => request<Record<string, number | boolean | null | string | string[]>>(`/api/brief-defaults/${type}`),
+  plan: (id: string) => request<Plan>(`/api/projects/${id}/plan`),
   build: (id: string) => request<Project>(`/api/projects/${id}/builds`, { method: "POST" }),
   labels: (id: string) => request<Label[]>(`/api/projects/${id}/labels`),
   modelUrl: (id: string, build?: string) => `/api/projects/${id}/model.glb${build ? `?b=${build}` : ""}`,
