@@ -55,7 +55,14 @@ def write_boq_xlsx(
     project: dict,
     assumptions: list[str],
     design: dict,
+    cost: dict | None = None,
 ) -> Path:
+    """Write the workbook. With ``cost`` the rate column is pre-filled from the rate library
+    (still editable) and the summary carries the estimate's on-cost percentages."""
+    priced = {}
+    if cost:
+        for ln in cost["lines"]:
+            priced[(ln["section"], ln["description"])] = ln
     cur = CURRENCY.get(project.get("country", ""), "USD")
     wb = Workbook()
 
@@ -81,7 +88,8 @@ def write_boq_xlsx(
         "Basis of measurement",
         "Section",
     ]
-    _header(ws, 4, hdr, [7, 42, 52, 7, 12, 13, 16, 52, 4])
+    hdr.append("Rate source (confidence, date)")
+    _header(ws, 4, hdr, [7, 42, 52, 7, 12, 13, 16, 52, 4, 46])
     ws.freeze_panes = "C5"
     row = 5
     section_rows: dict[str, tuple[int, int]] = {}
@@ -90,29 +98,36 @@ def write_boq_xlsx(
     ):
         c = ws.cell(row=row, column=1, value=n)
         ws.cell(row=row, column=2, value=section.upper())
-        for col in range(1, 10):
+        for col in range(1, 11):
             ws.cell(row=row, column=col).fill = BAND
             ws.cell(row=row, column=col).font = _f(bold=True)
         c.alignment = Alignment(horizontal="left")
         row += 1
         first = row
         for k, it in enumerate([i for i in items if i.section == section], start=1):
+            ln = priced.get((section, it.description))
+            src = (
+                f"{ln['source']} ({ln['confidence']}, {ln['date']})"
+                if ln and ln["rate"] is not None
+                else ""
+            )
             values = [
                 f"{n}.{k:02d}",
                 it.description,
                 it.spec,
                 it.unit,
                 it.qty,
-                None,
+                ln["rate"] if ln else None,
                 f'=IF(F{row}="","",E{row}*F{row})',
                 it.basis,
                 section,
+                src,
             ]
             for col, v in enumerate(values, start=1):
                 cell = ws.cell(row=row, column=col, value=v)
                 cell.font = _f()
                 cell.border = BOX
-                cell.alignment = Alignment(vertical="top", wrap_text=col in (2, 3, 8))
+                cell.alignment = Alignment(vertical="top", wrap_text=col in (2, 3, 8, 10))
             ws.cell(row=row, column=5).number_format = "#,##0.00"
             ws.cell(row=row, column=6).fill = INPUT
             ws.cell(row=row, column=6).number_format = "#,##0.00"
@@ -182,31 +197,62 @@ def write_boq_xlsx(
             sm.cell(row=rr, column=col).border = BOX
         rr += 1
     sub = rr
-    sm.cell(row=sub, column=1, value="Subtotal").font = _f(bold=True)
+    st = (cost or {}).get("settings", {})
+    steps = [
+        ("Preliminaries", st.get("preliminaries", 0.10), "of direct cost"),
+        ("Overhead and profit", st.get("overhead_profit", 0.10), "of the above"),
+        ("Contingency", st.get("contingency", 0.10), "of the above"),
+        ("Escalation to construction midpoint", st.get("escalation", 0.0), "of the above"),
+    ]
+    sm.cell(row=sub, column=1, value="Direct cost (sum of sections)").font = _f(bold=True)
     c = sm.cell(row=sub, column=2, value=f"=SUM(B{t0 + 1}:B{sub - 1})")
     c.font = _f(bold=True)
     c.number_format = "#,##0.00"
-    sm.cell(row=sub + 1, column=1, value="Contingency (edit the rate)").font = _f()
-    pct = sm.cell(row=sub + 1, column=3, value=0.10)
+    r = sub
+    for label, pct_value, how in steps:
+        r += 1
+        sm.cell(row=r, column=1, value=f"{label} ({how}; edit the rate)").font = _f()
+        pct = sm.cell(row=r, column=3, value=pct_value)
+        pct.fill = INPUT
+        pct.number_format = "0.0%"
+        pct.font = _f()
+        c = sm.cell(row=r, column=2, value=f"=SUM(B{sub}:B{r - 1})*C{r}")
+        c.number_format = "#,##0.00"
+        c.font = _f()
+    r += 1
+    sm.cell(row=r, column=1, value="Total before VAT").font = _f(bold=True)
+    c = sm.cell(row=r, column=2, value=f"=SUM(B{sub}:B{r - 1})")
+    c.number_format = "#,##0.00"
+    c.font = _f(bold=True)
+    before = r
+    r += 1
+    sm.cell(row=r, column=1, value="VAT (edit the rate)").font = _f()
+    pct = sm.cell(row=r, column=3, value=st.get("vat", 0.15))
     pct.fill = INPUT
     pct.number_format = "0%"
-    pct.font = _f()
-    c = sm.cell(row=sub + 1, column=2, value=f"=B{sub}*C{sub + 1}")
+    c = sm.cell(row=r, column=2, value=f"=B{before}*C{r}")
     c.number_format = "#,##0.00"
-    c.font = _f()
-    sm.cell(row=sub + 2, column=1, value="Total including contingency").font = _f(
-        bold=True, size=11
-    )
-    c = sm.cell(row=sub + 2, column=2, value=f"=B{sub}+B{sub + 1}")
+    r += 1
+    sm.cell(row=r, column=1, value="Total including VAT").font = _f(bold=True, size=11)
+    c = sm.cell(row=r, column=2, value=f"=B{before}+B{r - 1}")
     c.number_format = "#,##0.00"
     c.font = _f(bold=True, size=11)
     c.border = Border(top=Side(style="medium", color=INK))
     note = sm.cell(
-        row=sub + 4,
+        row=r + 2,
         column=1,
-        value="Contingency 10% is a typical concept-stage allowance; adjust in the yellow cell.",
+        value=(
+            "Rates are pre-filled from the rate library (see the source column on the BOQ "
+            "sheet): official and published prices converted to installed rates, and estimator "
+            "allowances where no public price exists. Replace them with quotes as they arrive."
+            if cost
+            else "Enter rates on the BOQ sheet; percentages are editable."
+        ),
     )
     note.font = _f(italic=True, color="4B5966")
+    sm.merge_cells(start_row=r + 2, start_column=1, end_row=r + 2, end_column=3)
+    note.alignment = Alignment(wrap_text=True)
+    sm.row_dimensions[r + 2].height = 44
 
     # ------------------------------------------------------------------ BOM
     bm = wb.create_sheet("BOM")

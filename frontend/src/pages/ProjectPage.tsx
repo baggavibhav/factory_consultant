@@ -7,12 +7,17 @@ import { api, ApiError, type Brief, type Label, type Project } from "../lib/api"
 import { MEMBER_NAMES, PLANT_TYPE, ZONE_COLOURS, bytes, dec, int, sqft, stamp, statusOf } from "../lib/format";
 import BriefForm from "../components/BriefForm";
 import BoqView from "../components/BoqView";
+import CostView from "../components/CostView";
+import ProcurementView from "../components/ProcurementView";
 import PlanView from "../components/PlanView";
+import CompareView from "../components/CompareView";
+import { AlertTriangle, GitCompare, MapPinned, Wand2 } from "lucide-react";
+import type { Finding } from "../lib/api";
 import { PlantIcon } from "../components/Brand";
 import { useToast } from "../components/Toasts";
-import Viewer3D, { LAYERS, SERVICE_KEYS, type LayerKey, type ViewName } from "../components/Viewer3D";
+import Viewer3D, { LAYERS, SERVICE_KEYS, type LayerKey, type ViewName, type WalkSetup } from "../components/Viewer3D";
 
-type Tab = "overview" | "program" | "layers" | "structure" | "files" | "activity";
+type Tab = "overview" | "checks" | "program" | "layers" | "structure" | "files" | "activity";
 const BUILD_STEPS = ["Reading the drawing", "Aligning the column grid", "Generating the structure", "Exporting the 3D model"];
 const CONCEPT_STEPS = ["Sizing the building", "Laying out the zones", "Generating the structure", "Exporting the 3D model"];
 const VIEWS: { key: ViewName; label: string; concept?: boolean }[] = [
@@ -22,11 +27,12 @@ const VIEWS: { key: ViewName; label: string; concept?: boolean }[] = [
   { key: "plan", label: "Plan" },
   { key: "street", label: "Street" },
   { key: "inside", label: "Inside" },
+  { key: "walk", label: "Walk through" },
 ];
 const DEFAULT_LAYERS = Object.fromEntries(LAYERS.map((l) => [l.key, l.group !== "Services" && l.key !== "foundations"])) as Record<LayerKey, boolean>;
 const allServices = (on: boolean) => Object.fromEntries(SERVICE_KEYS.map((k) => [k, on])) as Partial<Record<LayerKey, boolean>>;
 
-type Panel = "model" | "plan" | "quantities";
+type Panel = "model" | "plan" | "quantities" | "cost" | "procurement" | "compare";
 
 function Steps({ project, panel, setPanel }: { project: Project; panel: Panel; setPanel: (p: Panel) => void }) {
   const hasDrawing = project.mode === "brief" ? !!project.brief : !!project.drawing;
@@ -35,7 +41,7 @@ function Steps({ project, panel, setPanel }: { project: Project; panel: Panel; s
     { label: project.mode === "brief" ? "Brief" : "Drawing", done: hasDrawing, current: !hasDrawing },
     { label: project.mode === "brief" ? "Concept layout and structure" : "3D model and structure", done: hasModel, current: hasDrawing && !hasModel },
     { label: "Quantities and BOQ", done: hasModel && !!project.latest_build?.facts.quantities },
-    { label: "Cost estimate", later: "v0.8" },
+    { label: "Cost estimate", done: hasModel && !!project.latest_build?.facts.cost?.available },
   ];
   return (
     <ol className="steps" aria-label="Project progress" style={{ listStyle: "none", margin: 0 }}>
@@ -43,7 +49,6 @@ function Steps({ project, panel, setPanel }: { project: Project; panel: Panel; s
         <li key={s.label} className={`step${s.done ? " done" : ""}${s.current ? " current" : ""}`} aria-current={s.current ? "step" : undefined}>
           <span className="n">{s.done ? <Check size={13} strokeWidth={3} /> : i + 1}</span>
           {s.label}
-          {s.later && <span className="later">{s.later}</span>}
         </li>
       ))}
       {hasModel && (
@@ -52,6 +57,8 @@ function Steps({ project, panel, setPanel }: { project: Project; panel: Panel; s
             <button aria-pressed={panel === "model"} onClick={() => setPanel("model")}>3D model</button>
             <button aria-pressed={panel === "plan"} onClick={() => setPanel("plan")}>Plan</button>
             <button aria-pressed={panel === "quantities"} onClick={() => setPanel("quantities")}>Quantities</button>
+            <button aria-pressed={panel === "cost"} onClick={() => setPanel("cost")}>Cost</button>
+            <button aria-pressed={panel === "procurement"} onClick={() => setPanel("procurement")}>Procurement</button>
           </div>
         </li>
       )}
@@ -145,6 +152,12 @@ export default function ProjectPage() {
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [editingBrief, setEditingBrief] = useState(false);
   const [panel, setPanel] = useState<Panel>("model");
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const [focus, setFocus] = useState<[number, number] | null>(null);
+  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [white, setWhite] = useState(false);
+  const [walkSetup, setWalkSetup] = useState<WalkSetup | null>(null);
+  const [working, setWorking] = useState<string | null>(null);
   const [xray, setXray] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [view, setView] = useState<ViewName>("iso");
@@ -191,6 +204,36 @@ export default function ProjectPage() {
     }
   }
 
+  useEffect(() => {
+    if (project?.status === "model_ready") api.checks(id).then(setFindings).catch(() => setFindings(null));
+    else setFindings(null);
+  }, [id, project?.status, project?.latest_build?.id]);
+
+  async function makeVariant(name: string, body: { changes?: Record<string, unknown>; brief?: Brief; source?: string | null }) {
+    setWorking(name);
+    try {
+      const p = await api.createVariant(id, { name, ...body });
+      setProject(p);
+      const v = p.variants?.[p.variants.length - 1];
+      if (v) { setCompareId(v.id); setPanel("compare"); setEditingBrief(false); }
+      toast(`Variant built: ${name}`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Variant failed.", true);
+    } finally {
+      setWorking(null);
+    }
+  }
+  async function acceptVariant(vid: string) {
+    setWorking("accept");
+    try { const p = await api.acceptVariant(id, vid); setProject(p); setPanel("model"); setCompareId(null); setTab("overview"); toast("Variant is now the design"); }
+    catch (e) { toast(e instanceof ApiError ? e.message : "Could not accept.", true); }
+    finally { setWorking(null); }
+  }
+  async function discardVariant(vid: string) {
+    try { const p = await api.deleteVariant(id, vid); setProject(p); if (compareId === vid) { setPanel("model"); setCompareId(null); } toast("Variant discarded"); }
+    catch (e) { toast(e instanceof ApiError ? e.message : "Could not discard.", true); }
+  }
+
   async function saveAndBuild(brief: Brief) {
     setBuilding(true);
     try {
@@ -209,7 +252,21 @@ export default function ProjectPage() {
     }
   }
 
-  function chooseView(v: ViewName) {
+  async function chooseView(v: ViewName) {
+    if (v === "walk") {
+      try {
+        const plan = await api.plan(id);
+        const [x0, y0, x1, y1] = plan.building;
+        const door = plan.openings.find((o) => o.kind === "entrance");
+        const start: [number, number] = door ? [door.x, door.y + 2.5] : [(x0 + x1) / 2, y0 + 3];
+        setWalkSetup({ start, origin: [(x0 + x1) / 2, (y0 + y1) / 2], ffl: b?.facts.levels.ffl ?? 0.6,
+          rooms: plan.rooms.map((r) => ({ name: r.name, points: r.points })) });
+        setShowLabels(false); setXray(false);
+        setLayers((l) => ({ ...l, roof: true }));
+        setView("walk");
+      } catch { toast("Rebuild the model to enable the walkthrough.", true); }
+      return;
+    }
     setView(v);
     if (v === "structure") { setXray(true); setShowLabels(false); setLayers((l) => ({ ...l, roof: false, foundations: true, ...allServices(false) })); }
     else if (v === "services") { setXray(true); setShowLabels(false); setLayers((l) => ({ ...l, roof: false, foundations: false, secondary: false, bracing: false, ...allServices(true) })); }
@@ -240,8 +297,10 @@ export default function ProjectPage() {
   const f = b?.facts;
   const status = statusOf(project);
   const concept = project.mode === "brief";
-  const tabs: Tab[] = ["overview", "program", "layers", "structure", "activity"];
-  const tabLabel = (t: Tab) => (t === "program" ? (concept ? "Program" : "Rooms") : t[0].toUpperCase() + t.slice(1));
+  const tabs: Tab[] = ["overview", "checks", "program", "layers", "structure"];
+  const serious = (findings ?? []).filter((f) => f.severity === "critical" || f.severity === "major").length;
+  const tabLabel = (t: Tab) => (t === "program" ? (concept ? "Program" : "Rooms")
+    : t === "checks" ? `Checks${serious ? ` (${serious})` : ""}` : t[0].toUpperCase() + t.slice(1));
   const ready = project.status === "model_ready" && !!f;
   const sched = f ? Object.entries(f.member_schedule) : [];
   const steelLen = sched.filter(([k]) => k !== "foundation").reduce((s, [, v]) => s + v.length_m, 0);
@@ -284,20 +343,29 @@ export default function ProjectPage() {
             concept && (!ready || editingBrief) ? (
               <div className="stage-scroll">
                 <BriefForm plantType={project.plant_type} initial={project.brief} busy={building}
-                  onSubmit={saveAndBuild} onCancel={ready ? () => setEditingBrief(false) : undefined} />
+                  onSubmit={saveAndBuild} onCancel={ready ? () => setEditingBrief(false) : undefined}
+                  onVariant={ready ? (br) => makeVariant("Custom design change", { brief: br }) : undefined} />
               </div>
             ) :
             !concept && (!project.drawing || uploading) ? <Dropzone onFile={upload} busy={uploading} /> :
-            ready && panel === "plan" ? <PlanView projectId={id} buildId={b!.id} concept={concept} /> :
+            working && working !== "accept" ? <Building steps={[`Building variant: ${working}`, "Laying out the zones", "Generating the structure", "Comparing with the current design"]} /> :
+            ready && panel === "compare" && compareId && project.variants?.find((v) => v.id === compareId) ?
+              <CompareView project={project} variant={project.variants.find((v) => v.id === compareId)!} busy={!!working}
+                onAccept={() => acceptVariant(compareId)} onDiscard={() => discardVariant(compareId)} onClose={() => { setPanel("model"); setCompareId(null); }} /> :
+            ready && panel === "plan" ? <PlanView projectId={id} buildId={b!.id} concept={concept} focus={focus} /> :
+            ready && panel === "procurement" ? <ProcurementView project={project} onProject={setProject} onToast={toast} /> :
+            ready && panel === "cost" ? <CostView project={project} onProject={setProject} onToast={toast} /> :
             ready && panel === "quantities" ? <BoqView projectId={id} buildId={b!.id} concept={concept} onRebuild={build} /> :
             !ready ? <ReadyToBuild project={project} onBuild={build} /> :
             <>
-              <Viewer3D url={api.modelUrl(id, b!.id)} labels={labels} size={f!.building_m} layers={layers} xray={xray} showLabels={showLabels} view={view} />
+              <Viewer3D url={api.modelUrl(id, b!.id)} labels={labels} size={f!.building_m} layers={layers} xray={xray} showLabels={showLabels} view={view}
+                walk={walkSetup} white={white} onWalkEnd={() => chooseView("iso")} />
               <div className="v-top">
                 <div className="v-seg" role="group" aria-label="Camera view">
                   {VIEWS.filter((v) => !v.concept || concept).map((v) => <button key={v.key} aria-pressed={view === v.key} onClick={() => chooseView(v.key)}>{v.label}</button>)}
                 </div>
                 <div className="v-seg" role="group" aria-label="Display">
+                  <button aria-pressed={white} onClick={() => setWhite(!white)}>White model</button>
                   <button aria-pressed={xray} onClick={() => setXray(!xray)}>X-ray walls</button>
                   <button aria-pressed={showLabels} onClick={() => setShowLabels(!showLabels)}>Room names</button>
                 </div>
@@ -339,6 +407,12 @@ export default function ProjectPage() {
                       <div className="metric"><div className="v">{f!.building_m[0]} × {f!.building_m[1]} m</div><div className="k">Main building</div></div>
                       <div className="metric"><div className="v">{f!.frames}</div><div className="k">Portal frames, {f!.span_m} m span</div></div>
                       <div className="metric"><div className="v">{int(steelLen)} m</div><div className="k">Steel members, total length</div></div>
+                      {f!.cost?.available && f!.cost.total != null && (
+                        <div className="metric" style={{ gridColumn: "span 2", cursor: "pointer" }} onClick={() => setPanel("cost")}>
+                          <div className="v">{f!.cost.currency} {(f!.cost.total / 1e6).toFixed(1)} M</div>
+                          <div className="k">Estimated cost incl. VAT ({f!.cost.currency} {int(f!.cost.per_m2 ?? 0)}/m² before VAT)</div>
+                        </div>
+                      )}
                     </div>
                     <div className="section">
                       <h3 className="section-title">Levels</h3>
@@ -491,12 +565,63 @@ export default function ProjectPage() {
               </>
             )}
 
-            {tab === "activity" && (
-              <ol className="timeline">
-                {[...project.events].reverse().map((e, i) => (
+            {tab === "checks" && (
+              !ready ? <p className="muted" style={{ marginTop: 0 }}>Checks run when the model is built.</p> :
+              !findings ? <p className="muted" style={{ marginTop: 0 }}>This build has no checks yet. Rebuild the model to run them.</p> : (
+                <>
+                  <div className="chk-summary">
+                    {(["critical", "major", "minor", "info"] as const).map((sv) => {
+                      const n = findings.filter((f) => f.severity === sv).length;
+                      return n ? <span key={sv} className={`sev ${sv}`}>{n} {sv}</span> : null;
+                    })}
+                    {findings.length === 0 && <span className="badge ok">No issues found</span>}
+                  </div>
+                  {findings.map((f) => (
+                    <div className="finding" key={f.id}>
+                      <span className={`sev ${f.severity}`}>{f.severity}</span> <span className="area-tag">{f.area}</span>
+                      <h4>{f.title}</h4>
+                      <p>{f.detail}</p>
+                      <p className="sugg"><AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> {f.suggestion}</p>
+                      <div className="acts">
+                        {f.at && <button className="btn sm" onClick={() => { setFocus(f.at); setPanel("plan"); }}><MapPinned size={14} /> Show on plan</button>}
+                        {f.fix && concept && <button className="btn sm primary" disabled={!!working} onClick={() => makeVariant(f.fix_label ?? f.title, { changes: f.fix!, source: f.id })}><Wand2 size={14} /> {f.fix_label ?? "Try a fix"}</button>}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="subtle" style={{ fontSize: 12 }}>Checks are rule-based aids for the design team, not a code-compliance certificate.</p>
+                  {concept && (
+                    <div className="section">
+                      <h3 className="section-title">Variants</h3>
+                      {(project.variants ?? []).length === 0 && <p className="muted" style={{ fontSize: 13, margin: 0 }}>Use “Try a fix” above, or Edit design → “Save as variant to compare”, to build an alternative and see it side by side.</p>}
+                      {(project.variants ?? []).map((v) => {
+                        const steel = v.build?.changes?.find((c) => c.label === "Structural steel");
+                        return (
+                          <div className="variant" key={v.id}>
+                            <strong>{v.name}</strong>
+                            {steel && <div className="subtle" style={{ fontSize: 12 }}>Steel {dec(steel.before)} → {dec(steel.after)} t</div>}
+                            <div className="acts" style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                              <button className="btn sm" onClick={() => { setCompareId(v.id); setPanel("compare"); }}><GitCompare size={14} /> Compare</button>
+                              <button className="btn sm" onClick={() => acceptVariant(v.id)} disabled={!!working}>Use</button>
+                              <button className="btn sm ghost danger" onClick={() => discardVariant(v.id)}>Discard</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )
+            )}
+
+            {tab === "overview" && (
+              <div className="section">
+                <h3 className="section-title">Recent activity</h3>
+                <ol className="timeline">
+                {[...project.events].reverse().slice(0, 8).map((e, i) => (
                   <li key={i}><span className={`pin ${e.kind}`} /><div>{e.message}<time dateTime={e.at}>{stamp(e.at)}</time></div></li>
                 ))}
-              </ol>
+                </ol>
+              </div>
             )}
           </div>
         </aside>

@@ -1,0 +1,1034 @@
+# Rate library: Saudi Arabia (SAR). Installed rates unless stated.
+#
+# confidence:
+#   official  - from GASTAT official material prices (supply), converted to installed
+#   published - from a published supplier/market price (supply), converted to installed
+#   allowance - estimator allowance, NOT from a cited source; replace with quotes
+#
+# Conversion from supply price to installed rate uses the stated factor (labour, plant,
+# waste, small materials, fixing). Factors are estimator assumptions.
+# low/high give the range used for the estimate's low and high totals.
+# match: any of these texts found in the BOQ item description or material (case-insensitive).
+# per: "kva" or "m3" makes the rate base + per_value x the number in the description.
+
+name = "Saudi Arabia rate library"
+currency = "SAR"
+rate_date = "2026-07-01"          # average date of the sourced prices
+escalation_per_year = 0.02         # GASTAT Construction Cost Index rose 2% year on year (March 2026)
+
+[defaults]
+preliminaries = 0.10               # Turner & Townsend ICMS 2025: average 10.0–11.1%
+overhead_profit = 0.10             # Turner & Townsend ICMS 2025: about 10.6% on smaller projects
+contingency = 0.10                 # concept-stage allowance
+vat = 0.15                         # Saudi VAT
+construction_months = 14
+
+[[benchmark]]
+name = "Food production / dairy facility (Compass International)"
+low_per_m2 = 3510                  # USD 936/m² at 3.75 SAR/USD
+high_per_m2 = 6011                 # USD 1,603/m²
+note = "Older published range; excludes refrigeration equipment and process piping"
+url = "https://www.compassinternational.net"
+
+[[rate]]
+key = "excavation"
+match = ["Excavate for pad foundations", "Excavate"]
+unit = "m³"
+rate = 35
+low = 25
+high = 50
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "blinding"
+match = ["Blinding"]
+unit = "m²"
+rate = 30
+low = 22
+high = 40
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "pad_concrete"
+match = ["Pad foundations", "Ground beams"]
+unit = "m³"
+supply = 330
+factor = 1.45
+low = 400
+high = 560
+confidence = "published"
+source = "GCCPricing Saudi Arabia: ready-mix C40 (indicative; page currency label inconsistent) × 1.45 for formwork, placing, curing"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "slab_concrete"
+match = ["Ground-bearing floor slab"]
+unit = "m³"
+supply = 295
+factor = 1.35
+low = 340
+high = 470
+confidence = "published"
+source = "GCCPricing Saudi Arabia: ready-mix C30 (indicative) × 1.35 for placing, finishing, joints"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "rebar"
+match = ["Reinforcement"]
+unit = "kg"
+supply = 3.36
+factor = 1.45
+low = 4.3
+high = 5.8
+confidence = "official"
+source = "GASTAT average construction materials prices: local reinforcing iron 10 mm, SAR 3,358.88/t (June 2026), via CEIC's GASTAT series; × 1.45 cut, bend, fix"
+url = "https://www.ceicdata.com/en/saudi-arabia/average-construction-materials-price"
+date = "2026-06-30"
+
+[[rate]]
+key = "mesh"
+match = ["mesh"]
+unit = "m²"
+rate = 30
+low = 24
+high = 38
+confidence = "allowance"
+source = "Estimator allowance (per layer)"
+
+[[rate]]
+key = "dpm"
+match = ["Damp-proof membrane"]
+unit = "m²"
+rate = 6
+low = 4
+high = 9
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "plinth"
+match = ["plinth wall"]
+unit = "m²"
+supply = 106
+factor = 1.55
+low = 130
+high = 220
+confidence = "published"
+source = "GCCPricing: CMU block 200 mm at 8.5 each × 12.5 blocks/m² (indicative) × 1.55 for mortar, plaster, coving, labour"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "steel_main"
+match = ["Portal frame", "Gable wind columns", "Eave beams", "Rafter haunches", "Internal columns", "Mezzanine beams", "Mezzanine columns"]
+unit = "t"
+supply = 3300
+factor = 1.9
+low = 5300
+high = 7600
+confidence = "published"
+source = "AFCO Steel (Saudi supplier): structural steel typically SAR 2,800–3,800/t; mid value × 1.9 for fabrication, painting, erection"
+url = "https://afcosteel.com.sa/blog/category/steel-structure/"
+date = "2026-01-01"
+
+[[rate]]
+key = "steel_secondary"
+match = ["Roof purlins", "Wall girts"]
+unit = "t"
+supply = 3300
+factor = 2.1
+low = 5900
+high = 8200
+confidence = "published"
+source = "AFCO Steel supply range; × 2.1 for cold-forming, galvanising, fixing"
+url = "https://afcosteel.com.sa/blog/category/steel-structure/"
+date = "2026-01-01"
+
+[[rate]]
+key = "steel_bracing"
+match = ["bracing", "Connections, base plates"]
+unit = "t"
+rate = 7000
+low = 5800
+high = 8800
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "roof_panel"
+match = ["Insulated roof panels"]
+unit = "m²"
+supply = 80
+factor = 1.6
+low = 105
+high = 165
+confidence = "published"
+source = "Published Saudi sandwich panel prices SAR 55–85/m² for premium panels; upper range for 100 mm PIR × 1.6 for fixings, flashings, erection"
+url = "https://www.alibaba.com/product-insights/sandwich-panel-price-in-saudi.html"
+date = "2026-03-20"
+
+[[rate]]
+key = "wall_panel"
+match = ["Insulated wall cladding panels", "Full-height hygienic partitions"]
+unit = "m²"
+supply = 70
+factor = 1.6
+low = 90
+high = 145
+confidence = "published"
+source = "Published Saudi sandwich panel prices SAR 55–85/m² (80 mm PIR) × 1.6 installed"
+url = "https://www.alibaba.com/product-insights/sandwich-panel-price-in-saudi.html"
+date = "2026-03-20"
+
+[[rate]]
+key = "office_partition"
+match = ["Office and amenity partitions"]
+unit = "m²"
+supply = 106
+factor = 1.5
+low = 130
+high = 210
+confidence = "published"
+source = "GCCPricing CMU block 200 mm (indicative) × 1.5 for plaster and paint both sides"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "flashings"
+match = ["flashings"]
+unit = "m"
+rate = 45
+low = 30
+high = 65
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "gutters"
+match = ["Eave gutters"]
+unit = "m"
+rate = 180
+low = 130
+high = 250
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "downpipes"
+match = ["downpipes"]
+unit = "nr"
+rate = 650
+low = 450
+high = 900
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "dock_door"
+match = ["Loading dock doors"]
+unit = "nr"
+rate = 28000
+low = 20000
+high = 38000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "dock_leveller"
+match = ["Dock levellers"]
+unit = "nr"
+rate = 38000
+low = 28000
+high = 50000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "fire_exit_door"
+match = ["Fire exit doors"]
+unit = "nr"
+rate = 5500
+low = 4000
+high = 7500
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "entrance_door"
+match = ["Main entrance"]
+unit = "nr"
+rate = 9000
+low = 6000
+high = 14000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "cold_panel_chill"
+match = ["Cold-room panel (chill)"]
+unit = "m²"
+rate = 190
+low = 150
+high = 240
+confidence = "allowance"
+source = "Estimator allowance (100 mm cold-room panel installed)"
+
+[[rate]]
+key = "cold_panel_freezer"
+match = ["Cold-room panel (freezer)", "Insulated cold-room panels"]
+unit = "m²"
+rate = 240
+low = 190
+high = 300
+confidence = "allowance"
+source = "Estimator allowance (150 mm cold-room panel installed)"
+
+[[rate]]
+key = "cold_panel_blast"
+match = ["Cold-room panel (blast)"]
+unit = "m²"
+rate = 290
+low = 230
+high = 360
+confidence = "allowance"
+source = "Estimator allowance (200 mm cold-room panel installed)"
+
+[[rate]]
+key = "freezer_floor"
+match = ["insulated heated floor"]
+unit = "m²"
+rate = 420
+low = 330
+high = 520
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "hangers"
+match = ["ceiling suspension hangers"]
+unit = "nr"
+rate = 120
+low = 80
+high = 170
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "mezzanine"
+match = ["Mezzanine floor"]
+unit = "m²"
+rate = 350
+low = 280
+high = 450
+confidence = "allowance"
+source = "Estimator allowance (deck and slab; steel priced separately)"
+
+[[rate]]
+key = "finish_production"
+match = ["Production, cooling and packaging floors"]
+unit = "m²"
+rate = 180
+low = 140
+high = 240
+confidence = "allowance"
+source = "Estimator allowance (PU cement 9 mm)"
+
+[[rate]]
+key = "finish_cold"
+match = ["Cold-room floor finish"]
+unit = "m²"
+rate = 200
+low = 150
+high = 260
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "finish_store"
+match = ["Store floors", "Dispatch floors", "Plant room floors"]
+unit = "m²"
+rate = 50
+low = 35
+high = 70
+confidence = "allowance"
+source = "Estimator allowance (hardener and sealer)"
+
+[[rate]]
+key = "finish_tiles"
+match = ["Office and lab floors", "Changing, dining and prayer floors", "Corridor and entrance floors"]
+unit = "m²"
+rate = 150
+low = 110
+high = 200
+confidence = "allowance"
+source = "Estimator allowance (porcelain tiles)"
+
+[[rate]]
+key = "boundary_wall"
+match = ["Boundary wall"]
+unit = "m"
+rate = 900
+low = 650
+high = 1250
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "paving"
+match = ["Yard paving"]
+unit = "m²"
+rate = 120
+low = 85
+high = 160
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "silo"
+match = ["Flour silos"]
+unit = "nr"
+rate = 250000
+low = 180000
+high = 340000
+confidence = "allowance"
+source = "Estimator allowance (60 t silo with conveying)"
+
+[[rate]]
+key = "transformer"
+match = ["Distribution transformer"]
+unit = "nr"
+rate = 40000
+per = "kva"
+per_value = 110
+low_factor = 0.8
+high_factor = 1.3
+confidence = "allowance"
+source = "Estimator allowance: 40,000 + 110 per kVA"
+
+[[rate]]
+key = "generator"
+match = ["Standby generator"]
+unit = "nr"
+rate = 30000
+per = "kva"
+per_value = 650
+low_factor = 0.8
+high_factor = 1.3
+confidence = "allowance"
+source = "Estimator allowance: 30,000 + 650 per kVA"
+
+[[rate]]
+key = "lv_board"
+match = ["Main LV switchboard"]
+unit = "nr"
+rate = 180000
+low = 120000
+high = 260000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "db"
+match = ["Distribution boards"]
+unit = "nr"
+rate = 6500
+low = 4500
+high = 9500
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "cable_tray"
+match = ["Cable tray"]
+unit = "m"
+rate = 180
+low = 130
+high = 240
+confidence = "allowance"
+source = "Estimator allowance (300 mm HDG tray installed)"
+
+[[rate]]
+key = "feeders"
+match = ["Sub-main feeder", "HV/LV cable duct"]
+unit = "m"
+supply = 95
+factor = 1.3
+low = 100
+high = 160
+confidence = "published"
+source = "GCCPricing copper cable 25 mm² (indicative) × 1.3 installed"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "process_feeders"
+match = ["Process power feeders", "Machine power cabling"]
+unit = "m"
+supply = 225
+factor = 1.3
+low = 240
+high = 360
+confidence = "published"
+source = "GCCPricing copper cable 70 mm² (indicative) × 1.3 installed"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "lighting_circuits"
+match = ["Lighting circuits"]
+unit = "m"
+supply = 18.5
+factor = 1.9
+low = 28
+high = 45
+confidence = "published"
+source = "GCCPricing copper cable 2.5 mm² (indicative) × 1.9 with conduit and installation"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "socket_circuits"
+match = ["Socket circuits"]
+unit = "m"
+supply = 22
+factor = 1.9
+low = 34
+high = 52
+confidence = "published"
+source = "GCCPricing copper cable 4 mm² (indicative) × 1.9 with conduit and installation"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "sockets"
+match = ["Socket outlets"]
+unit = "nr"
+rate = 180
+low = 120
+high = 260
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "highbay"
+match = ["LED high-bay"]
+unit = "nr"
+rate = 1100
+low = 750
+high = 1600
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "panel_light"
+match = ["LED panel"]
+unit = "nr"
+rate = 350
+low = 220
+high = 500
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "cold_light"
+match = ["LED low-temperature"]
+unit = "nr"
+rate = 1400
+low = 950
+high = 2000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "line_panels"
+match = ["Line control panels"]
+unit = "nr"
+rate = 22000
+low = 15000
+high = 32000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "small_devices"
+match = ["Light switches", "Junction boxes"]
+unit = "nr"
+rate = 90
+low = 50
+high = 140
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "isolators"
+match = ["Local isolators"]
+unit = "nr"
+rate = 950
+low = 650
+high = 1400
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "water_tank"
+match = ["Water storage tank"]
+unit = "nr"
+rate = 8000
+per = "m3"
+per_value = 1100
+low_factor = 0.8
+high_factor = 1.3
+confidence = "allowance"
+source = "Estimator allowance: 8,000 + 1,100 per m³ (GRP sectional)"
+
+[[rate]]
+key = "fire_tank"
+match = ["Fire water tank"]
+unit = "nr"
+rate = 20000
+per = "m3"
+per_value = 900
+low_factor = 0.8
+high_factor = 1.3
+confidence = "allowance"
+source = "Estimator allowance: 20,000 + 900 per m³"
+
+[[rate]]
+key = "booster_pump"
+match = ["Booster pump set"]
+unit = "nr"
+rate = 45000
+low = 30000
+high = 65000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "water_pipe"
+match = ["Water pipework (PP-R)"]
+unit = "m"
+supply = 12.5
+factor = 6.0
+low = 55
+high = 110
+confidence = "published"
+source = "GCCPricing PP-R PN20 20 mm (indicative); × 6 for larger mains, fittings, supports and labour (mixed 32–63 mm)"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "hot_pipe"
+match = ["Hot water pipework"]
+unit = "m"
+supply = 12.5
+factor = 5.0
+low = 45
+high = 90
+confidence = "published"
+source = "GCCPricing PP-R PN20 20 mm (indicative) × 5 with insulation, fittings, labour"
+url = "https://www.gccpricing.com/saudi-arabia-construction-prices"
+date = "2026-07-24"
+
+[[rate]]
+key = "heaters"
+match = ["water heaters"]
+unit = "nr"
+rate = 1800
+low = 1200
+high = 2600
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "outlets_generic"
+match = ["Hand-wash stations and sanitary outlets"]
+unit = "nr"
+rate = 2200
+low = 1400
+high = 3500
+confidence = "allowance"
+source = "Estimator allowance (average fixture, used when no breakdown by type exists)"
+
+[[rate]]
+key = "wc"
+match = ["WCs"]
+unit = "nr"
+rate = 2200
+low = 1500
+high = 3200
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "basin"
+match = ["Wash basins"]
+unit = "nr"
+rate = 1400
+low = 900
+high = 2100
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "shower"
+match = ["Showers"]
+unit = "nr"
+rate = 2500
+low = 1700
+high = 3600
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "handwash"
+match = ["Hand-wash stations"]
+unit = "nr"
+rate = 4500
+low = 3000
+high = 6500
+confidence = "allowance"
+source = "Estimator allowance (stainless, hands-free)"
+
+[[rate]]
+key = "ablution"
+match = ["Ablution taps"]
+unit = "nr"
+rate = 900
+low = 600
+high = 1300
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "sinks"
+match = ["Sinks", "Lab sinks"]
+unit = "nr"
+rate = 2800
+low = 1800
+high = 4200
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "process_water"
+match = ["Process water connections", "Compressed-air connections"]
+unit = "nr"
+rate = 1500
+low = 900
+high = 2400
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "gully"
+match = ["floor gullies"]
+unit = "nr"
+rate = 1600
+low = 1100
+high = 2300
+confidence = "allowance"
+source = "Estimator allowance (stainless hygienic gully)"
+
+[[rate]]
+key = "drain_100"
+match = ["drainage pipe 100 mm"]
+unit = "m"
+rate = 160
+low = 120
+high = 220
+confidence = "allowance"
+source = "Estimator allowance (incl. trench and bedding)"
+
+[[rate]]
+key = "drain_150"
+match = ["drainage pipe 150 mm"]
+unit = "m"
+rate = 220
+low = 160
+high = 300
+confidence = "allowance"
+source = "Estimator allowance (incl. trench and bedding)"
+
+[[rate]]
+key = "drain_200"
+match = ["drainage pipe 200 mm"]
+unit = "m"
+rate = 300
+low = 220
+high = 400
+confidence = "allowance"
+source = "Estimator allowance (incl. trench and bedding)"
+
+[[rate]]
+key = "chambers"
+match = ["Inspection chambers"]
+unit = "nr"
+rate = 3500
+low = 2500
+high = 5000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "grease_trap"
+match = ["Grease interceptor"]
+unit = "nr"
+rate = 25000
+low = 15000
+high = 40000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "fire_pump"
+match = ["Fire pump set"]
+unit = "nr"
+rate = 220000
+low = 160000
+high = 320000
+confidence = "allowance"
+source = "Estimator allowance (electric, diesel and jockey, NFPA 20)"
+
+[[rate]]
+key = "hydrant_main"
+match = ["hydrant ring main"]
+unit = "m"
+rate = 450
+low = 330
+high = 600
+confidence = "allowance"
+source = "Estimator allowance (HDPE 150 mm incl. trench)"
+
+[[rate]]
+key = "hydrants"
+match = ["Pillar hydrants"]
+unit = "nr"
+rate = 6500
+low = 4500
+high = 9000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "sprinkler_heads"
+match = ["Sprinkler heads"]
+unit = "nr"
+rate = 250
+low = 170
+high = 350
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "sprinkler_pipe"
+match = ["Sprinkler pipework"]
+unit = "m"
+rate = 190
+low = 140
+high = 260
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "detectors"
+match = ["Fire alarm detectors"]
+unit = "nr"
+rate = 280
+low = 190
+high = 400
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "facp"
+match = ["Fire alarm control panel"]
+unit = "nr"
+rate = 35000
+low = 22000
+high = 50000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "fa_cable"
+match = ["Fire alarm loop cable"]
+unit = "m"
+rate = 22
+low = 15
+high = 32
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "fire_devices"
+match = ["Emergency exit signs", "Manual call points", "Fire extinguishers", "Alarm sounders"]
+unit = "nr"
+rate = 380
+low = 250
+high = 550
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "hose_reels"
+match = ["Fire hose reels"]
+unit = "nr"
+rate = 2800
+low = 2000
+high = 4000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "condensing"
+match = ["Condensing units"]
+unit = "nr"
+rate = 60000
+low = 40000
+high = 90000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "evaporators"
+match = ["Evaporator unit coolers"]
+unit = "nr"
+rate = 14000
+low = 9000
+high = 20000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "refrigerant_pipe"
+match = ["Refrigerant pipework"]
+unit = "m"
+rate = 180
+low = 130
+high = 250
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "extract_fans"
+match = ["Roof extract fans"]
+unit = "nr"
+rate = 6000
+low = 4000
+high = 9000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "ahu"
+match = ["Air handling units"]
+unit = "nr"
+rate = 180000
+low = 120000
+high = 260000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "ductwork"
+match = ["ductwork"]
+unit = "m²"
+rate = 230
+low = 170
+high = 300
+confidence = "allowance"
+source = "Estimator allowance (galvanised ductwork per m² of surface)"
+
+[[rate]]
+key = "ac_units"
+match = ["Ducted AC units"]
+unit = "nr"
+rate = 18000
+low = 12000
+high = 26000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "diffusers"
+match = ["Diffusers and grilles"]
+unit = "nr"
+rate = 450
+low = 300
+high = 650
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "oven_extract"
+match = ["Oven extract hoods"]
+unit = "nr"
+rate = 45000
+low = 30000
+high = 65000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "compressor"
+match = ["Air compressor with dryer"]
+unit = "nr"
+rate = 160000
+low = 110000
+high = 230000
+confidence = "allowance"
+source = "Estimator allowance (oil-free screw with dryer)"
+
+[[rate]]
+key = "air_pipe"
+match = ["Compressed-air ring main"]
+unit = "m"
+rate = 150
+low = 110
+high = 210
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "air_drops"
+match = ["Compressed-air drops"]
+unit = "nr"
+rate = 1800
+low = 1200
+high = 2600
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "lpg_tank"
+match = ["LPG tank"]
+unit = "nr"
+rate = 180000
+low = 120000
+high = 260000
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "gas_pipe"
+match = ["Gas pipework"]
+unit = "m"
+rate = 380
+low = 280
+high = 520
+confidence = "allowance"
+source = "Estimator allowance"
+
+[[rate]]
+key = "valve_trains"
+match = ["Oven gas valve trains"]
+unit = "nr"
+rate = 25000
+low = 17000
+high = 35000
+confidence = "allowance"
+source = "Estimator allowance"

@@ -11,6 +11,7 @@ interface Props {
   busy: boolean;
   onSubmit: (brief: Brief) => void;
   onCancel?: () => void;
+  onVariant?: (brief: Brief) => void;
 }
 
 const num = (v: string) => (v.trim() === "" ? null : Number(v));
@@ -37,7 +38,7 @@ function YesNo({ id, value, def, onChange }: { id: string; value: boolean | null
   );
 }
 
-export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel }: Props) {
+export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel, onVariant }: Props) {
   const [d, setD] = useState<Defaults>({});
   const [unit, setUnit] = useState<Unit>("m2");
   const [area, setArea] = useState(initial ? String(Math.round(initial.built_up_area_m2)) : "");
@@ -62,7 +63,7 @@ export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel
     setUnit(u);
   }
 
-  function submit(e: FormEvent) {
+  function submit(e: FormEvent, asVariant = false) {
     e.preventDefault();
     const raw = Number(area);
     const m2 = unit === "sqft" ? raw * M2_PER_SQFT : raw;
@@ -71,7 +72,8 @@ export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel
       document.getElementById("bf-area")?.focus();
       return;
     }
-    onSubmit({ ...b, plant_type: plantType, built_up_area_m2: Math.round(m2 * 10) / 10 } as Brief);
+    const brief = { ...b, plant_type: plantType, built_up_area_m2: Math.round(m2 * 10) / 10 } as Brief;
+    if (asVariant && onVariant) onVariant(brief); else onSubmit(brief);
   }
 
   const areaM2 = Number(area) > 0 ? (unit === "sqft" ? Number(area) * M2_PER_SQFT : Number(area)) : null;
@@ -219,6 +221,7 @@ export default function BriefForm({ plantType, initial, busy, onSubmit, onCancel
         <span className="muted">The concept is a starting point for your architects and engineers, not a construction design.</span>
         <div style={{ display: "flex", gap: 8 }}>
           {onCancel && <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>}
+          {onVariant && <button type="button" className="btn" onClick={(e) => submit(e, true)} disabled={busy}>Save as variant to compare</button>}
           <button type="submit" className="btn primary" disabled={busy}>
             {busy ? <Loader2 className="spin" size={16} /> : <Hammer size={16} />} Save and build concept
           </button>

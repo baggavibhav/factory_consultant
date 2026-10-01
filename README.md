@@ -3,7 +3,7 @@
 Switz Group agent that turns a plant brief and drawings into a 3D plant model,
 BOM/BOQ, an inflation-adjusted cost estimate, and a contractor recommendation.
 
-**Current stage (v0.7.0):** detailed service routing to every fitting, plus web app; plants from a drawing or a brief; editable design options with change comparison; 2D plan view of rooms and services; rooms read from DWG drawings; MEP concept layers; quantities, BOQ (Excel) and BOM.
+**Current stage (v1.2.0):** procurement (suppliers, RFQs, quote comparison), plus cost estimates from a cited rate library, plus detailed MEP (round pipes, fittings, hangers, valves, trays with cables, every switch, socket and fixture) and a walkthrough mode, plus sample machine layouts per production line, plus automatic design checks and before/after variants, plus detailed service routing to every fitting, plus web app; plants from a drawing or a brief; editable design options with change comparison; 2D plan view of rooms and services; rooms read from DWG drawings; MEP concept layers; quantities, BOQ (Excel) and BOM.
 
 - Ingestion: convert AutoCAD DWG to DXF (with automatic repair), extract walls,
   cold-room panels, openings and room labels.
@@ -21,6 +21,16 @@ BOM/BOQ, an inflation-adjusted cost estimate, and a contractor recommendation.
   one-service-at-a-time mode, lengths and sizes on hover, zoom and pan.
 - Rooms from drawings: room outlines and names are read from the DWG (door gaps closed;
   open-plan zones estimated), giving finishes and fittings per room.
+- Walkthrough: "Walk through" view at eye height with collisions, doors, a mini-map and the
+  current room; keyboard, mouse or touch. On a VR headset a "View in VR" button appears once
+  the app is served over https.
+- White model display for MEP coordination-style views.
+- Design checks (all projects): site access, escape distances, fire compartment, hygiene
+  zoning, cold-chain adjacency, missing rooms, span and bay economy, drainage in wet rooms.
+  Findings have severity, explanation, suggestion and "Show on plan".
+- Variants (concept projects): "Try a fix" or "Save as variant" builds an alternative; the
+  compare view shows before and after side by side (linked 3D cameras or plans), with added,
+  removed and resized elements highlighted, what changed, and which issues are resolved.
 - Detailed routing (concept projects): lighting circuits along every row of luminaires,
   socket circuits, process power to each line, fire alarm loop, cold and hot water to every
   outlet, sprinkler pipework to every head, supply/extract/AC ductwork, air drops and gas
@@ -128,6 +138,38 @@ fill in which layers are walls, panels, doors, windows and room labels.
 zone proportions, building depth and bay spacing, setbacks, office and amenity
 sizing. They are plain text so engineering can tune them to Switz standards;
 changes take effect on the next build and are tracked in git.
+
+## Cost estimates and the rate library
+
+`config/rates/sa.toml` holds the Saudi rate library (SAR): every rate has its source,
+date and confidence (official GASTAT price, published market price, or estimator
+allowance). Supply prices are converted to installed rates with a stated factor. Every
+build prices the BOQ: likely/low/high totals, preliminaries, overhead and profit,
+contingency, escalation to the construction midpoint (GASTAT Construction Cost Index
+trend) and VAT, with a benchmark check. The Excel BOQ comes pre-priced with a rate-source
+column. Rates can be edited in the app (Cost library); edits are stored in
+`projects/_rate_overrides.json` and applied on Recalculate. Countries without a library
+are not priced (Saudi Arabia only for now).
+
+## Procurement
+
+- Suppliers page: a directory seeded with prospect suppliers found in public sources
+  (`config/suppliers/sa_prospects.json`, each with its source link). Vet them with the
+  checklist; approval needs the commercial registration and references checked.
+- Procurement view per project: the priced BOQ split into packages (civil, steel, envelope,
+  cold rooms, finishes, electrical, plumbing, fire, HVAC, utilities). Invite suppliers,
+  download each package's RFQ Excel, upload suppliers' filled-in files, and compare.
+- Comparison normalises quotes (excl. VAT, allowances for excluded delivery/installation,
+  missing lines at library rates), scores best value (price 60%, compliance 20%, lead time
+  10%, completeness 10%) and flags outliers, gaps, expired quotes and unapproved suppliers.
+- Accepting a quote writes its rates into the rate library as "quoted" and re-prices the
+  project.
+
+## Hosting a demo
+
+See [docs/deploy.md](docs/deploy.md): private GitHub repository, then Render builds the
+`Dockerfile` using `render.yaml` and gives an https link. Demo mode shows a banner and
+creates sample projects.
 
 ## Material specifications
 

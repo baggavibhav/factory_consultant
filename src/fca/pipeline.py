@@ -91,13 +91,15 @@ def _write_quantities(
     assumptions: list[str],
     design: dict,
     mep_facts: dict | None,
+    footprint_m2: float = 0.0,
 ) -> dict:
-    """Write BOQ/BOM as JSON (for the web app) and Excel (for tender); return headline totals."""
+    """Write BOQ/BOM as JSON (for the web app), estimate the cost, and write the priced
+    Excel BOQ; return headline totals (with the cost summary under ``cost``)."""
     from fca.quantities.excel import CURRENCY, write_boq_xlsx
     from fca.quantities.takeoff import SECTIONS, as_dicts, bill_of_materials
 
     bom = bill_of_materials(items)
-    write_boq_xlsx(out_dir / f"{name}.boq.xlsx", items, bom, project, assumptions, design)
+    del write_boq_xlsx  # the priced workbook is written by the cost step below
 
     def total(section: str, unit: str) -> float:
         return round(sum(i.qty for i in items if i.section == section and i.unit == unit), 1)
@@ -121,12 +123,22 @@ def _write_quantities(
         "bom": bom,
         "headline": headline,
         "mep": mep_facts or {},
+        "project": {k: v for k, v in project.items() if isinstance(v, str | int | float)},
+        "assumptions": assumptions,
+        "design": design,
+        "footprint_m2": footprint_m2,
     }
     (out_dir / f"{name}.boq.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
+    from fca.cost.service import write_cost
+
+    overrides = project.get("rate_overrides")
+    headline["cost"] = write_cost(
+        out_dir, name, project.get("cost_settings") or {}, Path(overrides) if overrides else None
+    )
     return headline
 
 
-def _write_plan(out_dir, name, plot, building, segments, rooms, mep, openings, members) -> None:
+def _write_plan(out_dir, name, plot, building, segments, rooms, mep, openings, members) -> dict:
     """2D plan data for the web app's plan view: walls, rooms, services, openings, columns."""
     from fca.model.schema import Category
 
@@ -198,6 +210,17 @@ def _write_plan(out_dir, name, plot, building, segments, rooms, mep, openings, m
     (Path(out_dir) / f"{name}.plan.json").write_text(
         json.dumps(data, separators=(",", ":")), encoding="utf-8"
     )
+    return data
+
+
+def _write_checks(out_dir, name, plan: dict, facts: dict, mode: str) -> None:
+    from fca.checks.rules import as_dicts, run_checks, summary
+
+    findings = run_checks(plan, facts, mode)
+    (Path(out_dir) / f"{name}.checks.json").write_text(
+        json.dumps(as_dicts(findings), indent=1), encoding="utf-8"
+    )
+    facts["checks"] = summary(findings)
 
 
 def _design_basis(facts: dict) -> dict:
@@ -321,10 +344,12 @@ def build_3d(
         ],
         _design_basis(facts),
         None,
+        facts["footprint_m2"],
     )
+    facts["cost"] = facts["quantities"].pop("cost")
     report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
 
-    _write_plan(
+    plan = _write_plan(
         out_dir,
         name,
         plot or cfg.envelope,
@@ -335,6 +360,8 @@ def build_3d(
         [],
         members,
     )
+    _write_checks(out_dir, name, plan, facts, "drawing")
+    report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
     labels = _labels(geometry, cfg, builder)
     (out_dir / f"{name}.labels.json").write_text(json.dumps(labels, indent=1), encoding="utf-8")
 
@@ -385,7 +412,9 @@ def build_concept(
     for room in lay.rooms:
         builder.add_zone(room.category, room.rect)
     mep = build_mep(lay, values, brief.plant_type)
-    builder.add_mep(mep)
+    from fca.model3d.detail import add_mep_detailed
+
+    add_mep_detailed(builder, mep)
     builder.add_plinth()
     builder.add_openings(lay.openings)
 
@@ -446,7 +475,7 @@ def build_concept(
         plot=lay.plot,
         openings=lay.openings,
     )
-    _write_plan(
+    plan = _write_plan(
         out_dir, name, lay.plot, lay.building, lay.segments, lay.rooms, mep, lay.openings, members
     )
     proj = {
@@ -464,8 +493,22 @@ def build_concept(
         design[f"MEP: {service}"] = {k.replace("_", " "): v for k, v in vals.items()}
     facts["mep"] = mep.facts
     facts["quantities"] = _write_quantities(
-        out_dir, name, items, proj, assumptions + warnings, design, mep.facts
+        out_dir,
+        name,
+        items,
+        proj,
+        assumptions + warnings,
+        design,
+        mep.facts,
+        facts["footprint_m2"],
     )
+    facts["cost"] = facts["quantities"].pop("cost")
+    facts["lines"] = values["lines_now"] + values["lines_future"]
+    facts["site_minimums"] = [
+        tpl.site.get("min_goods_in_yard_m", 15.0),
+        tpl.site.get("min_dispatch_apron_m", 30.0),
+    ]
+    _write_checks(out_dir, name, plan, facts, "concept")
     report_path = out_dir / f"{name}.structure.json"
     report_path.write_text(json.dumps(facts, indent=2), encoding="utf-8")
 

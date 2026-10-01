@@ -198,3 +198,77 @@ def test_brief_defaults_include_design_options(client):
     d = client.get("/api/brief-defaults/industrial").json()
     assert "Production area" in d["hall_zones"]
     assert d["dispatch_yard_m"] >= 30 and d["span_m"] == 40.0
+
+
+def test_cost_endpoints_and_rate_edits(client):
+    pid = client.post(
+        "/api/projects",
+        json={
+            "name": "Cost API",
+            "plant_type": "industrial",
+            "country": "Saudi Arabia",
+            "mode": "brief",
+        },
+    ).json()["id"]
+    client.put(
+        f"/api/projects/{pid}/brief", json={"plant_type": "industrial", "built_up_area_m2": 3000}
+    )
+    built = client.post(f"/api/projects/{pid}/builds").json()
+    base = built["latest_build"]["facts"]["cost"]["total"]
+    assert client.get(f"/api/projects/{pid}/cost").json()["unpriced"] == []
+    lower = client.put(f"/api/projects/{pid}/cost-settings", json={"contingency": 0.05}).json()
+    assert lower["latest_build"]["facts"]["cost"]["total"] < base
+    rates = client.get("/api/rates").json()
+    assert any(r["key"] == "roof_panel" and r["confidence"] == "published" for r in rates["rates"])
+    client.put("/api/rates/roof_panel", json={"rate": 400, "note": "Quote from supplier A"})
+    after = client.post(f"/api/projects/{pid}/cost/recalculate").json()
+    assert (
+        after["latest_build"]["facts"]["cost"]["total"]
+        > lower["latest_build"]["facts"]["cost"]["total"]
+    )
+    edited = next(r for r in client.get("/api/rates").json()["rates"] if r["key"] == "roof_panel")
+    assert edited["edited"] and edited["installed"] == 400
+    client.delete("/api/rates/roof_panel")
+    assert not next(
+        r for r in client.get("/api/rates").json()["rates"] if r["key"] == "roof_panel"
+    )["edited"]
+    assert client.put(f"/api/projects/{pid}/cost-settings", json={"vat": 0.9}).status_code == 422
+
+
+def test_demo_mode_seeds_projects_and_hides_from_search(tmp_path):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from fca.api.app import create_app
+
+    app = create_app(
+        data_dir=tmp_path / "d", config_dir=REPO_ROOT / "config" / "plants", web_dir=None, demo=True
+    )
+    with TestClient(app) as c:
+        assert c.get("/api/meta").json()["demo"] is True
+        assert c.get("/robots.txt").text.startswith("User-agent: *")
+        assert c.get("/api/health").headers["x-robots-tag"] == "noindex, nofollow"
+        for _ in range(120):
+            projects = c.get("/api/projects").json()
+            if len(projects) == 3 and all(p["status"] == "model_ready" for p in projects):
+                break
+            time.sleep(0.5)
+        assert {p["name"] for p in projects} >= {"Demo: Jeddah industrial bakery"}
+        assert all(p["status"] == "model_ready" for p in projects)
+
+
+def test_optional_demo_password(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from fca.api.app import create_app
+
+    monkeypatch.setenv("FCA_DEMO_PASSWORD", "bakery")
+    c = TestClient(
+        create_app(
+            data_dir=tmp_path / "e", config_dir=REPO_ROOT / "config" / "plants", web_dir=None
+        )
+    )
+    assert c.get("/api/projects").status_code == 401
+    assert c.get("/api/health").status_code == 200
+    assert c.get("/api/projects", auth=("any", "bakery")).status_code == 200

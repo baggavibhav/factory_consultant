@@ -60,7 +60,9 @@ def test_every_sprinkler_head_is_piped(mep):
 def test_every_outlet_has_cold_water_and_wet_rooms_have_hot(mep):
     m, _ = mep
     cold = [r for r in m.routes if r.kind == "Cold water branch"]
-    outlets = [i for i in m.items if i.kind == "Outlet"]
+    from fca.concept.mep import FIXTURES
+
+    outlets = [i for i in m.items if i.kind in FIXTURES]
     assert all(_near_route(i.at, cold) for i in outlets)
     assert any(r.kind == "Hot water" for r in m.routes)
     assert sum(1 for i in m.items if i.kind == "Water heater") >= 4
@@ -101,3 +103,23 @@ def test_runs_are_orthogonal(mep):
         if abs(a[0] - b[0]) > 1e-3 and abs(a[1] - b[1]) > 1e-3
     ]
     assert diagonal == []  # services run along x and y, like on site
+
+
+def test_sample_machines_sit_in_their_rooms_and_are_connected(mep):
+    m, lay = mep
+    machines = m.machines
+    assert machines
+    for mc in machines:
+        room = next(
+            r
+            for r in lay.rooms
+            if r.rect.xmin - 0.1 <= mc.x <= r.rect.xmax + 0.1
+            and r.rect.ymin - 0.1 <= mc.y <= r.rect.ymax + 0.1
+        )
+        assert room.category == "production"
+    active = [mc for mc in machines if not mc.future]
+    drops = [r for r in m.routes if r.kind == "Machine drop"]
+    assert len(drops) == len(active)  # every active machine has power
+    ovens = [mc for mc in active if mc.name == "Tunnel oven"]
+    assert len([r for r in m.routes if r.kind == "Oven extract duct"]) == len(ovens)
+    assert any(mc.future for mc in machines)  # 1 future line shown as a ghost

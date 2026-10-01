@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fca import __version__
 from fca.api.models import (
     BuildInfo,
+    CostSettings,
     DrawingInfo,
     Meta,
     PlantType,
@@ -24,6 +25,9 @@ from fca.api.models import (
     ProjectStatus,
     ProjectSummary,
     ProjectUpdate,
+    RateEdit,
+    Variant,
+    VariantCreate,
 )
 from fca.api.store import NotFound, ProjectStore, now, safe_filename
 from fca.concept.brief import Brief, resolve
@@ -57,6 +61,7 @@ CHANGE_FIELDS = [
         "kVA",
     ),
     ("Fire water tank", lambda f: ((f.get("mep") or {}).get("fire") or {}).get("tank_m3"), "m³"),
+    ("Estimated cost incl. VAT", lambda f: (f.get("cost") or {}).get("total"), "SAR"),
 ]
 
 
@@ -88,8 +93,17 @@ def create_app(
     config_dir: Path | None = None,
     web_dir: Path | None = WEB_DIR,
     dev_cors: bool = False,
+    demo: bool | None = None,
 ) -> FastAPI:
+    """Build the app. ``demo`` (or env FCA_DEMO=1) marks a public demo: a banner is shown and
+    sample projects are created when the projects folder is empty. Env FCA_DEMO_PASSWORD
+    optionally protects the whole site with a shared password (off when unset)."""
+    import os
+
+    demo = demo if demo is not None else os.environ.get("FCA_DEMO") == "1"
+    demo_password = os.environ.get("FCA_DEMO_PASSWORD", "")
     store = ProjectStore(data_dir or PROJECT_ROOT / "projects")
+    overrides_path = store.root / "_rate_overrides.json"
     configs = Path(config_dir or PROJECT_ROOT / "config" / "plants")
     app = FastAPI(title="Factory Consultant API", version=__version__)
     app.state.store = store
@@ -116,6 +130,40 @@ def create_app(
     def health() -> dict:
         return {"status": "ok", "version": __version__}
 
+    @app.middleware("http")
+    async def public_safety(request, call_next):
+        if demo_password and request.url.path != "/api/health":
+            import base64
+            import secrets
+
+            from fastapi.responses import Response
+
+            auth = request.headers.get("authorization", "")
+            ok = False
+            if auth.lower().startswith("basic "):
+                try:
+                    _, _, pw = base64.b64decode(auth[6:]).decode().partition(":")
+                    ok = secrets.compare_digest(pw, demo_password)
+                except Exception:
+                    ok = False
+            if not ok:
+                return Response(
+                    "Password required",
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="Factory Consultant demo"'},
+                )
+        response = await call_next(request)
+        response.headers["X-Robots-Tag"] = (
+            "noindex, nofollow"  # keep the demo out of search engines
+        )
+        return response
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots():
+        from fastapi.responses import PlainTextResponse
+
+        return PlainTextResponse("User-agent: *\nDisallow: /\n")
+
     @app.get("/api/meta", response_model=Meta)
     def meta() -> Meta:
         return Meta(
@@ -123,6 +171,7 @@ def create_app(
             plant_types=[{"value": k.value, "label": v} for k, v in PLANT_TYPE_LABELS.items()],
             configs=config_names(),
             converter_available=find_dwg2dxf() is not None,
+            demo=demo,
         )
 
     # -- projects -----------------------------------------------------------
@@ -237,6 +286,8 @@ def create_app(
             "country": project.country,
             "city": project.city,
             "plant_type_label": PLANT_TYPE_LABELS[project.plant_type],
+            "cost_settings": project.cost_settings,
+            "rate_overrides": str(overrides_path),
         }
         if project.mode == "brief":
             if not project.brief:
@@ -267,6 +318,11 @@ def create_app(
         )
         project.builds += 1
         project.status = ProjectStatus.MODEL_READY
+        if project.variants:  # variants compare against the old design; clear them
+            import shutil
+
+            shutil.rmtree(store.outputs(project_id) / "variants", ignore_errors=True)
+            project.variants = []
         frames = result.facts.get("frames", 0)
         kind = "Concept model" if project.mode == "brief" else "3D model"
         return store.save(project, ("build", f"{kind} built: {frames} frames"))
@@ -289,6 +345,207 @@ def create_app(
     @app.get("/api/projects/{project_id}/plan")
     def plan(project_id: str) -> FileResponse:
         return output_file(project_id, "model.plan.json", "application/json")
+
+    @app.get("/api/projects/{project_id}/checks")
+    def checks(project_id: str) -> FileResponse:
+        return output_file(project_id, "model.checks.json", "application/json")
+
+    # -- variants (concept projects) ---------------------------------------------
+    def variant_dir(project_id: str, variant_id: str) -> Path:
+        return store.outputs(project_id) / "variants" / variant_id
+
+    def find_variant(project: Project, variant_id: str) -> Variant:
+        v = next((v for v in project.variants if v.id == variant_id), None)
+        if v is None:
+            raise HTTPException(404, "Variant not found")
+        return v
+
+    @app.post("/api/projects/{project_id}/variants", response_model=Project, status_code=201)
+    async def create_variant(project_id: str, body: VariantCreate) -> Project:
+        import json as _json
+
+        from fca.checks.diff import plan_diff
+        from fca.pipeline import build_concept
+
+        project = get_project(project_id)
+        if project.mode != "brief" or not project.brief or not project.latest_build:
+            raise HTTPException(409, "Variants need a built concept project")
+        if body.brief is not None:
+            brief = body.brief
+        else:
+            data = project.brief.model_dump()
+            for key, value in body.changes.items():
+                if key == "zone_sizes" and isinstance(value, dict):
+                    data["zone_sizes"] = {**(data.get("zone_sizes") or {}), **value}
+                else:
+                    data[key] = value
+            try:
+                brief = Brief.model_validate(data)
+            except ValueError as exc:
+                raise HTTPException(422, f"Invalid change: {exc}") from exc
+        vid = uuid.uuid4().hex[:8]
+        out = variant_dir(project_id, vid)
+        info = {
+            "name": f"{project.name} – {body.name}",
+            "country": project.country,
+            "city": project.city,
+            "plant_type_label": PLANT_TYPE_LABELS[project.plant_type],
+        }
+        started, t0 = now(), time.perf_counter()
+        try:
+            result = await run_in_threadpool(build_concept, brief, out, "model", info)
+        except Exception as exc:
+            raise HTTPException(422, f"Variant build failed: {exc}") from exc
+        base_plan = _json.loads((store.outputs(project_id) / "model.plan.json").read_text())
+        new_plan = _json.loads((out / "model.plan.json").read_text())
+        (out / "model.diff.json").write_text(_json.dumps(plan_diff(base_plan, new_plan)))
+        variant = Variant(
+            id=vid,
+            name=body.name,
+            brief=brief,
+            created_at=now(),
+            source=body.source,
+            build=BuildInfo(
+                id=uuid.uuid4().hex[:8],
+                started_at=started,
+                finished_at=now(),
+                duration_s=round(time.perf_counter() - t0, 1),
+                facts=result.facts,
+                warnings=result.warnings,
+                changes=compare_builds(project.latest_build.facts, result.facts),
+            ),
+        )
+        project.variants.append(variant)
+        return store.save(project, ("variant", f"Variant built: {body.name}"))
+
+    @app.get("/api/projects/{project_id}/variants/{variant_id}/{filename}")
+    def variant_file(project_id: str, variant_id: str, filename: str) -> FileResponse:
+        media = {
+            "model.glb": "model/gltf-binary",
+            "plan": "application/json",
+            "diff": "application/json",
+            "labels": "application/json",
+            "checks": "application/json",
+            "boq": "application/json",
+        }
+        files = {
+            "model.glb": "model.glb",
+            "plan": "model.plan.json",
+            "diff": "model.diff.json",
+            "labels": "model.labels.json",
+            "checks": "model.checks.json",
+            "boq": "model.boq.json",
+        }
+        project = get_project(project_id)
+        find_variant(project, variant_id)
+        if filename not in files:
+            raise HTTPException(404, "Unknown file")
+        path = variant_dir(project_id, variant_id) / files[filename]
+        if not path.is_file():
+            raise HTTPException(404, "Variant file missing")
+        return FileResponse(path, media_type=media[filename], headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/projects/{project_id}/variants/{variant_id}/accept", response_model=Project)
+    def accept_variant(project_id: str, variant_id: str) -> Project:
+        import shutil
+
+        project = get_project(project_id)
+        v = find_variant(project, variant_id)
+        out = store.outputs(project_id)
+        src = variant_dir(project_id, variant_id)
+        for f in src.iterdir():
+            if f.name != "model.diff.json":
+                shutil.copy2(f, out / f.name)
+        project.brief = v.brief
+        project.latest_build = v.build
+        project.builds += 1
+        shutil.rmtree(src, ignore_errors=True)
+        project.variants = [x for x in project.variants if x.id != variant_id]
+        return store.save(project, ("build", f"Variant accepted as the design: {v.name}"))
+
+    @app.delete("/api/projects/{project_id}/variants/{variant_id}", response_model=Project)
+    def delete_variant(project_id: str, variant_id: str) -> Project:
+        import shutil
+
+        project = get_project(project_id)
+        v = find_variant(project, variant_id)
+        shutil.rmtree(variant_dir(project_id, variant_id), ignore_errors=True)
+        project.variants = [x for x in project.variants if x.id != variant_id]
+        return store.save(project, ("variant", f"Variant discarded: {v.name}"))
+
+    # -- cost -------------------------------------------------------------------------
+    @app.get("/api/projects/{project_id}/cost")
+    def cost(project_id: str) -> FileResponse:
+        return output_file(project_id, "model.cost.json", "application/json")
+
+    def recalc(project: Project) -> Project:
+        from fca.cost.service import write_cost
+
+        out = store.outputs(project.id)
+        if not project.latest_build or not (out / "model.boq.json").is_file():
+            raise HTTPException(409, "Build the model first")
+        summary = write_cost(out, "model", project.cost_settings, overrides_path)
+        project.latest_build.facts["cost"] = summary
+        return store.save(project, ("cost", "Cost estimate recalculated"))
+
+    @app.put("/api/projects/{project_id}/cost-settings", response_model=Project)
+    def cost_settings(project_id: str, body: CostSettings) -> Project:
+        project = get_project(project_id)
+        project.cost_settings = body.model_dump(exclude_none=True)
+        return recalc(project)
+
+    @app.post("/api/projects/{project_id}/cost/recalculate", response_model=Project)
+    def cost_recalculate(project_id: str) -> Project:
+        return recalc(get_project(project_id))
+
+    from fca.api.procurement import register as register_procurement
+
+    register_procurement(app, store, get_project, overrides_path, recalc)
+
+    @app.get("/api/rates")
+    def rates(country: str = "Saudi Arabia") -> dict:
+        from dataclasses import asdict
+
+        from fca.cost.estimate import COUNTRY_LIBRARY, load_library
+
+        if country not in COUNTRY_LIBRARY:
+            raise HTTPException(404, f"No rate library for {country} yet")
+        lib = load_library(country, overrides_path)
+        return {
+            "name": lib.name,
+            "currency": lib.currency,
+            "rate_date": lib.rate_date,
+            "escalation_per_year": lib.escalation_per_year,
+            "defaults": lib.defaults,
+            "benchmarks": lib.benchmarks,
+            "rates": [{**asdict(r), "installed": r.installed} for r in lib.rates],
+        }
+
+    @app.put("/api/rates/{key}")
+    def edit_rate(key: str, body: RateEdit) -> dict:
+        import json as _json
+
+        from fca.cost.estimate import load_library
+
+        lib = load_library("Saudi Arabia")
+        if key not in {r.key for r in lib.rates}:
+            raise HTTPException(404, "Unknown rate")
+        edits = _json.loads(overrides_path.read_text()) if overrides_path.is_file() else {}
+        change = body.model_dump(exclude_none=True)
+        if "rate" in change:  # an edited installed rate replaces the supply-based calculation
+            change["supply"] = None
+        edits[key] = {**edits.get(key, {}), **change}
+        overrides_path.write_text(_json.dumps(edits, indent=1))
+        return {"key": key, "edited": edits[key]}
+
+    @app.delete("/api/rates/{key}")
+    def reset_rate(key: str) -> dict:
+        import json as _json
+
+        edits = _json.loads(overrides_path.read_text()) if overrides_path.is_file() else {}
+        edits.pop(key, None)
+        overrides_path.write_text(_json.dumps(edits, indent=1))
+        return {"key": key, "reset": True}
 
     @app.get("/api/projects/{project_id}/boq")
     def boq(project_id: str) -> FileResponse:
@@ -329,6 +586,78 @@ def create_app(
             candidate = web_dir / path
             if path and candidate.is_file() and web_dir in candidate.resolve().parents:
                 return FileResponse(candidate)
-            return FileResponse(web_dir / "index.html")
+            # Never cache the page shell, so a new version loads right after an update.
+            return FileResponse(web_dir / "index.html", headers={"Cache-Control": "no-cache"})
+
+    if demo:
+        import asyncio
+        import logging
+
+        demo_log = logging.getLogger("fca.demo")
+        samples = [
+            (
+                ProjectCreate(
+                    name="Demo: Jeddah industrial bakery",
+                    plant_type="industrial",
+                    country="Saudi Arabia",
+                    city="Jeddah",
+                    mode="brief",
+                    notes="Sample project for the demo.",
+                ),
+                {
+                    "plant_type": "industrial",
+                    "built_up_area_m2": 5017,
+                    "plot_width_m": 150,
+                    "plot_depth_m": 70,
+                    "lines_now": 3,
+                    "lines_future": 1,
+                    "blast_freezer": True,
+                    "staff_per_shift": 80,
+                    "office_staff": 15,
+                },
+            ),
+            (
+                ProjectCreate(
+                    name="Demo: Riyadh retail bakery",
+                    plant_type="retail",
+                    country="Saudi Arabia",
+                    city="Riyadh",
+                    mode="brief",
+                    notes="Sample project for the demo.",
+                ),
+                {"plant_type": "retail", "built_up_area_m2": 1500, "staff_per_shift": 30},
+            ),
+            (
+                ProjectCreate(
+                    name="Demo: Dammam egg station",
+                    plant_type="egg_station",
+                    country="Saudi Arabia",
+                    city="Dammam",
+                    mode="brief",
+                    notes="Sample project for the demo.",
+                ),
+                {
+                    "plant_type": "egg_station",
+                    "built_up_area_m2": 2500,
+                    "cold_storage": True,
+                    "staff_per_shift": 30,
+                },
+            ),
+        ]
+
+        async def seed() -> None:
+            if store.list():
+                return
+            for create, brief in samples:
+                try:
+                    p = create_project(create)
+                    save_brief(p.id, Brief(**brief))
+                    await build(p.id)
+                except Exception as exc:  # a failed sample must not stop the server
+                    demo_log.warning("Demo project failed: %s", exc)
+
+        @app.on_event("startup")
+        async def _seed_demo() -> None:
+            asyncio.get_running_loop().create_task(seed())
 
     return app

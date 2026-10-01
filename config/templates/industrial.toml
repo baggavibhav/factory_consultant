@@ -16,6 +16,8 @@ setback_front_m = 10.0      # street side: parking and pedestrian access
 setback_rear_m = 6.0
 setback_west_m = 20.0       # goods-in yard: raw-material trucks and docks
 setback_east_m = 35.0       # dispatch apron: trucks turning and docking
+min_goods_in_yard_m = 15.0    # checks warn below these (truck sizes for this plant type)
+min_dispatch_apron_m = 30.0
 
 [strip]
 corridor_m = 2.0           # corridor between the two rows of rooms

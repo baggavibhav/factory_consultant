@@ -1,0 +1,15 @@
+.git
+.venv
+.vscode
+.pytest_cache
+.ruff_cache
+**/__pycache__
+projects
+data
+outputs
+tools
+frontend/node_modules
+tests
+*.dwg
+*.dxf
+.env

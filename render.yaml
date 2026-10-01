@@ -1,0 +1,21 @@
+# Render Blueprint: one web service built from the Dockerfile.
+# Paid "starter" plan with a 1 GB disk keeps projects between restarts.
+# For a free demo: set plan to free and delete the disk block. Free services sleep after
+# 15 minutes idle and lose saved projects; the demo projects are recreated on each start.
+services:
+  - type: web
+    name: factory-consultant-demo
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: FCA_DEMO
+        value: "1"
+      - key: FCA_DATA_DIR
+        value: /data/projects
+    disk:
+      name: fca-data
+      mountPath: /data
+      sizeGB: 1

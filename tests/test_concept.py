@@ -161,3 +161,31 @@ def test_design_overrides_apply():
     assert lay.config.levels.ridge - lay.config.levels.eaves_south == pytest.approx(
         15 * 0.1405, abs=0.05
     )  # tan(8°) × half the span
+
+
+def test_every_strip_room_has_a_door_and_hygiene_opens_to_production():
+    from fca.model.schema import Category
+
+    lay, _, _ = _layout(plant_type="industrial", built_up_area_m2=5000)
+    walls = [s for s in lay.segments if s.category == Category.WALL]
+    b = lay.building
+
+    def open_at(x, y):  # no wall covers this point
+        return not any(
+            abs(s.y1 - y) < 0.05
+            and abs(s.y2 - y) < 0.05
+            and min(s.x1, s.x2) - 1e-6 <= x <= max(s.x1, s.x2) + 1e-6
+            for s in walls
+        )
+
+    corridor = next(r for r in lay.rooms if r.name == "Corridor").rect
+    hall_y0 = b.ymin + lay.strip_depth
+    for r in lay.rooms:
+        q = r.rect
+        if r.name == "Corridor" or q.ymin >= hall_y0 - 1e-6:
+            continue
+        cx = (q.xmin + q.xmax) / 2
+        edge = corridor.ymin if q.ymax <= corridor.ymin + 1e-6 else corridor.ymax
+        assert open_at(cx, edge), f"{r.name} has no door onto the corridor"
+        if "hygiene" in r.name.lower():
+            assert open_at(cx, hall_y0), f"{r.name} has no door into production"

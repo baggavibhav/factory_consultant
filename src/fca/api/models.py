@@ -65,6 +65,41 @@ class BuildInfo(BaseModel):
     changes: list[dict[str, Any]] = []
 
 
+class Variant(BaseModel):
+    """An alternative version of a concept design, built separately for comparison."""
+
+    id: str
+    name: str
+    brief: Brief
+    created_at: datetime
+    source: str | None = None  # finding id when created from a check
+    build: BuildInfo | None = None
+
+
+class VariantCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    changes: dict[str, Any] = Field(default_factory=dict, description="Brief fields to change")
+    brief: Brief | None = Field(default=None, description="Full brief (instead of changes)")
+    source: str | None = None
+
+
+class CostSettings(BaseModel):
+    preliminaries: float | None = Field(default=None, ge=0, le=0.5)
+    overhead_profit: float | None = Field(default=None, ge=0, le=0.5)
+    contingency: float | None = Field(default=None, ge=0, le=0.5)
+    vat: float | None = Field(default=None, ge=0, le=0.3)
+    escalation_per_year: float | None = Field(default=None, ge=0, le=0.3)
+    construction_start: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    construction_months: int | None = Field(default=None, ge=1, le=60)
+
+
+class RateEdit(BaseModel):
+    rate: float | None = Field(default=None, ge=0)
+    low: float | None = Field(default=None, ge=0)
+    high: float | None = Field(default=None, ge=0)
+    note: str | None = Field(default=None, max_length=300)
+
+
 class Event(BaseModel):
     at: datetime
     kind: str
@@ -88,6 +123,9 @@ class Project(BaseModel):
     latest_build: BuildInfo | None = None
     builds: int = 0
     events: list[Event] = []
+    variants: list[Variant] = []
+    cost_settings: dict[str, Any] = {}
+    procurement: dict[str, Any] = {}
 
 
 class ProjectSummary(BaseModel):
@@ -108,3 +146,4 @@ class Meta(BaseModel):
     plant_types: list[dict[str, str]]
     configs: list[str]
     converter_available: bool
+    demo: bool = False

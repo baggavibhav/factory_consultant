@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { Loader2, Maximize } from "lucide-react";
-import { api, ApiError, type Plan } from "../lib/api";
+import { api, ApiError, type Plan, type PlanDiff } from "../lib/api";
 import { ZONE_COLOURS, dec, int } from "../lib/format";
 
 const SERVICES: { key: string; label: string; colour: string }[] = [
@@ -17,10 +17,15 @@ const OPENING_LABEL: Record<string, string> = { dock_in: "Goods-in dock", dock_o
 
 type Tip = { x: number; y: number; lines: string[] } | null;
 
-export default function PlanView({ projectId, buildId, concept }: { projectId: string; buildId: string; concept: boolean }) {
+interface Props {
+  projectId: string; buildId: string; concept: boolean;
+  url?: string; diff?: PlanDiff | null; side?: "before" | "after"; focus?: [number, number] | null; compact?: boolean;
+}
+
+export default function PlanView({ projectId, buildId, concept, url, diff, side, focus, compact }: Props) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [on, setOn] = useState<Record<string, boolean>>({ rooms: true, names: true, columns: true, openings: true, electrical: true, water: false, drainage: false, fire: false, hvac: false, air: false, gas: false });
+  const [on, setOn] = useState<Record<string, boolean>>({ rooms: true, names: true, columns: true, openings: true, machines: true, electrical: !compact, water: false, drainage: false, fire: false, hvac: false, air: false, gas: false });
   const [solo, setSolo] = useState<string | null>(null);
   const [kind, setKind] = useState<string | null>(null);
   const [tip, setTip] = useState<Tip>(null);
@@ -30,8 +35,8 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
 
   useEffect(() => {
     setPlan(null); setError(null);
-    api.plan(projectId).then(setPlan).catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
-  }, [projectId, buildId]);
+    api.plan(projectId, url).then(setPlan).catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
+  }, [projectId, buildId, url]);
 
   const full = useMemo(() => {
     if (!plan) return null;
@@ -39,7 +44,10 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
     const pad = Math.max(x1 - x0, y1 - y0) * 0.04;
     return { x: x0 - pad, y: -(y1 + pad), w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
   }, [plan]);
-  useEffect(() => { setView(full); }, [full]);
+  useEffect(() => {
+    if (full && focus) setView({ x: focus[0] - 30, y: -focus[1] - 18, w: 60, h: 36 });
+    else setView(full);
+  }, [full, focus]);
 
   if (error) {
     return <div className="stage-center"><div className="panel-card"><h2 className="h2">No plan for this build yet</h2><p>This model was built before the plan view existed. Rebuild it to see the plan.</p></div></div>;
@@ -72,7 +80,7 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
   };
 
   return (
-    <div className="plan">
+    <div className={`plan${compact ? " compact" : ""}`}>
       <svg ref={svg} className="plan-svg" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} preserveAspectRatio="xMidYMid meet"
         onWheel={zoom} onPointerDown={down} onPointerMove={move} onPointerUp={() => (drag.current = null)} onPointerLeave={() => { drag.current = null; setTip(null); }}
         role="img" aria-label="Plant plan with rooms and services">
@@ -90,7 +98,16 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
           {on.columns && plan.columns.map((c, i) => (
             <rect key={i} x={c[0] - 0.3} y={c[1] - 0.3} width={0.6} height={0.6} className="p-col" />
           ))}
-          {services.map((s) => shown(s.key) && (
+          {on.machines && plan.items.filter((it) => it.service.startsWith("equipment")).map((it, i) => {
+            const future = it.service === "equipment_future";
+            return (
+              <rect key={`m${i}`} x={it.x - it.w / 2} y={it.y - it.d / 2} width={it.w} height={it.d} rx={0.15}
+                fill={future ? "none" : "#9aa6b2"} fillOpacity={future ? 0 : 0.85} stroke={future ? "var(--ink-3)" : "#5f6b77"}
+                strokeWidth={scale * 0.8} strokeDasharray={future ? `${scale * 4} ${scale * 3}` : undefined}
+                onPointerMove={(e) => show(e, [it.kind, future ? "Future line (sample)" : "Sample machine, typical size"])} />
+            );
+          })}
+                    {services.map((s) => shown(s.key) && (
             <g key={s.key}>
               {plan.routes.filter((r) => r.service === s.key && (!kind || solo !== s.key || r.kind === kind)).map((r, i) => (
                 <polyline key={i} points={r.points.map((p) => p.join(",")).join(" ")} fill="none" stroke={s.colour}
@@ -113,6 +130,27 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
               fill={OPENING_COLOUR[o.kind]} onPointerMove={(e) => show(e, [OPENING_LABEL[o.kind]])} />;
           })}
         </g>
+        {diff && (() => {
+          const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${-y}`).join(" ");
+          const sw = scale * 2.2;
+          if (side === "after") return (
+            <g>
+              {diff.rooms_added.map((r, i) => <polygon key={`a${i}`} points={pts(r.points)} fill="#1f9d55" fillOpacity={0.35} stroke="#1f9d55" strokeWidth={sw} />)}
+              {diff.rooms_resized.map((r, i) => <polygon key={`r${i}`} points={pts(r.points)} fill="#e0a400" fillOpacity={0.25} stroke="#e0a400" strokeWidth={sw} />)}
+              {diff.openings_added.map((o, i) => <circle key={`o${i}`} cx={o.x} cy={-o.y} r={1.6} fill="#1f9d55" />)}
+              {diff.columns_added.map(([x, y], i) => <circle key={`c${i}`} cx={x} cy={-y} r={0.8} fill="#1f9d55" />)}
+              {diff.building_changed && <rect x={diff.building_after[0]} y={-diff.building_after[3]} width={diff.building_after[2] - diff.building_after[0]} height={diff.building_after[3] - diff.building_after[1]} fill="none" stroke="#e0a400" strokeWidth={sw} strokeDasharray={`${scale * 8} ${scale * 4}`} />}
+            </g>
+          );
+          return (
+            <g>
+              {diff.rooms_removed.map((r, i) => <polygon key={`d${i}`} points={pts(r.points)} fill="#d63030" fillOpacity={0.3} stroke="#d63030" strokeWidth={sw} />)}
+              {diff.openings_removed.map((o, i) => <circle key={`o${i}`} cx={o.x} cy={-o.y} r={1.6} fill="#d63030" />)}
+              {diff.columns_removed.map(([x, y], i) => <circle key={`c${i}`} cx={x} cy={-y} r={0.8} fill="#d63030" />)}
+            </g>
+          );
+        })()}
+        {focus && <circle cx={focus[0]} cy={-focus[1]} r={4} fill="none" stroke="var(--signal)" strokeWidth={scale * 3} className="pulse" />}
         {on.names && plan.rooms.filter((r) => r.area_m2 > 6).map((r, i) => {
           const xs = r.points.map((p) => p[0]); const ys = r.points.map((p) => p[1]);
           const cx = (Math.min(...xs) + Math.max(...xs)) / 2; const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
@@ -123,9 +161,9 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
         })}
       </svg>
 
-      <div className="plan-panel">
+      {!compact && <div className="plan-panel">
         <div className="section-title">Show</div>
-        {[["rooms", "Rooms"], ["names", "Room names"], ["columns", "Columns"], ["openings", "Doors, docks and silos"]].map(([k, l]) => (
+        {[["rooms", "Rooms"], ["names", "Room names"], ["columns", "Columns"], ["openings", "Doors, docks and silos"], ["machines", "Machines (sample)"]].map(([k, l]) => (
           <label className="toggle" key={k}><span>{l}</span><span className="switch"><input type="checkbox" checked={on[k]} onChange={(e) => setOn({ ...on, [k]: e.target.checked })} /><span /></span></label>
         ))}
         {services.length > 0 ? (
@@ -166,7 +204,7 @@ export default function PlanView({ projectId, buildId, concept }: { projectId: s
           <p className="subtle" style={{ fontSize: 12.5 }}>{concept ? "No services in this build." : "Service routes are generated for concept projects. For drawings, fittings are counted per room in the BOQ."}</p>
         )}
         <button className="btn sm" style={{ marginTop: 12 }} onClick={() => setView(full)}><Maximize size={14} /> Fit to plot</button>
-      </div>
+      </div>}
 
       {tip && <div className="plan-tip" style={{ left: tip.x, top: tip.y }}>{tip.lines.map((l, i) => <div key={i} className={i === 0 ? "t1" : ""}>{l}</div>)}</div>}
       <div className="v-hint">Scroll to zoom, drag to pan</div>

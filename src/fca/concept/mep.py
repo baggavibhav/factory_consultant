@@ -28,6 +28,7 @@ SERVICE_NAMES = {
     "hvac": "Refrigeration and ventilation",
     "air": "Compressed air",
     "gas": "Gas",
+    "equipment": "Production equipment (sample)",
 }
 
 LUX = {
@@ -70,6 +71,37 @@ def wet_outlets(name: str, category: str, area: float) -> int:
     if category == "production":
         return max(1, math.ceil(area / 150))
     return 0
+
+
+FIXTURES = ("WC", "Wash basin", "Shower", "Hand-wash station", "Ablution tap", "Sink", "Lab sink")
+
+
+def fixture_kinds(name: str, category: str, n: int) -> list[str]:
+    """What each water outlet in a room actually is (WC, basin, shower, sink...)."""
+    low = name.lower()
+    if "changing" in low or "toilet" in low:
+        cycle = ["WC", "Wash basin", "Shower"]
+        return [cycle[i % 3] for i in range(n)]
+    if "ablution" in low:
+        return ["Ablution tap"] * n
+    if "dining" in low or "utensil" in low:
+        return ["Sink"] * n
+    if "qa" in low or "laboratory" in low or "sample" in low:
+        return ["Lab sink"] * n
+    if "first aid" in low:
+        return ["Wash basin"] * n
+    return ["Hand-wash station"] * n
+
+
+FIXTURE_SIZE = {
+    "WC": (0.4, 0.7, 0.8),
+    "Wash basin": (0.55, 0.45, 0.2),
+    "Shower": (0.9, 0.9, 0.1),
+    "Hand-wash station": (0.8, 0.5, 0.9),
+    "Ablution tap": (0.3, 0.3, 0.3),
+    "Sink": (1.2, 0.6, 0.9),
+    "Lab sink": (1.0, 0.6, 0.9),
+}
 
 
 def floor_drains(name: str, category: str, area: float) -> int:
@@ -134,6 +166,7 @@ class MepModel:
     items: list[Item] = field(default_factory=list)
     quantities: list[Qty] = field(default_factory=list)
     facts: dict = field(default_factory=dict)
+    machines: list = field(default_factory=list)
 
     def route(self, service, kind, pts, size_mm) -> Route:
         r = Route(service, kind, [tuple(round(v, 3) for v in p) for p in pts], size_mm)
@@ -154,6 +187,7 @@ def _centre(r: Room) -> tuple[float, float]:
 
 def _grid(r: Room, count: int, z: float, margin: float = 1.5) -> list[Pt]:
     """Spread ``count`` points evenly over a room."""
+    margin = min(margin, r.rect.width / 4, r.rect.depth / 4)  # small rooms still get fittings
     w, d = r.rect.width - 2 * margin, r.rect.depth - 2 * margin
     if count <= 0 or w <= 0 or d <= 0:
         return []
@@ -385,8 +419,14 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
             chain += [(pts[0][0], pts[0][1], top)]
             chain += [(q[0], q[1], ffl + 1.1) for q in pts]
         m.route("water", "Cold water branch", orthogonal(chain), 32)
-        for q in pts:
-            m.item("water", "Outlet", q, (0.5, 0.4, 0.3))
+        for q, kind in zip(pts, fixture_kinds(r.name, r.category, len(pts)), strict=True):
+            w, d, h = FIXTURE_SIZE[kind]
+            z = (
+                ffl + 0.05
+                if kind == "Shower"
+                else ffl + (0.9 if kind in ("Wash basin", "Ablution tap") else h / 2)
+            )
+            m.item("water", kind, (q[0], q[1], z), (w, d, h))
     pipes = sum(rt.length for rt in m.routes if rt.service == "water")
     m.facts["water"] = {"tank_m3": tank_m3, "outlets": outlets}
     m.qty(
@@ -406,15 +446,6 @@ def build_mep(lay: ConceptLayout, values: dict, plant_type: str) -> MepModel:
         pipes,
         "plumbing.pipe",
         "Measured along routes",
-    )
-    m.qty(
-        "water",
-        "Hand-wash stations and sanitary outlets",
-        "nr",
-        outlets,
-        "plumbing.outlet",
-        "By room type: changing 1 per 5 m², hygiene stations 1 per 3 m², ablution 1 per 5 m², "
-        "production 1 per 150 m², dining 4, lab 3",
     )
 
     # ---------------- Drainage ----------------

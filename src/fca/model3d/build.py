@@ -36,6 +36,8 @@ MATERIALS: dict[str, tuple[tuple[float, float, float, float], float, float]] = {
     "zone_amenity": ((0.90, 0.78, 0.86, 1.0), 0.0, 0.9),
     "zone_utility": ((0.75, 0.75, 0.73, 1.0), 0.0, 0.9),
     "zone_circulation": ((0.86, 0.86, 0.84, 1.0), 0.0, 0.9),
+    "mep_equipment": ((0.74, 0.77, 0.80, 1.0), 0.75, 0.3),
+    "mep_equipment_future": ((0.62, 0.66, 0.70, 0.25), 0.2, 0.5),
     "mep_electrical": ((0.93, 0.70, 0.05, 1.0), 0.3, 0.5),
     "mep_water": ((0.18, 0.53, 0.87, 1.0), 0.3, 0.4),
     "mep_drainage": ((0.45, 0.33, 0.20, 1.0), 0.1, 0.7),
@@ -60,6 +62,10 @@ MATERIALS: dict[str, tuple[tuple[float, float, float, float], float, float]] = {
     "str_girt": ((0.35, 0.47, 0.60, 1.0), 0.6, 0.45),
     "str_bracing": ((0.20, 0.22, 0.25, 1.0), 0.6, 0.45),
 }
+
+from fca.model3d.detail import detail_materials  # noqa: E402
+
+MATERIALS.update(detail_materials(MATERIALS))
 
 _UNIT_BOX = trimesh.creation.box(extents=(1.0, 1.0, 1.0))
 _BOX_V = np.asarray(_UNIT_BOX.vertices)

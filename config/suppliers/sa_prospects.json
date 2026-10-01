@@ -1,0 +1,23 @@
+{
+  "note": "Prospect suppliers found in public sources (company websites and published listings) on 30 Sep 2026. Not endorsements and not vetted: check commercial registration, certificates and references before approving.",
+  "suppliers": [
+    {"name": "Zamil Steel", "categories": ["steel", "envelope"], "city": "Dammam", "website": "https://en.wikipedia.org/wiki/Zamil_Steel", "source": "Wikipedia: pre-engineered buildings, sandwich panels, structural steel; HQ Dammam"},
+    {"name": "AFCO Steel", "categories": ["steel"], "city": "", "website": "https://afcosteel.com.sa", "source": "Company website: structural steel supplier in Saudi Arabia"},
+    {"name": "Alnafie Metal Industries", "categories": ["steel"], "city": "", "website": "https://alnafie-indust.com", "source": "Company website: steel fabrication and erection since 1979"},
+    {"name": "Attieh Steel", "categories": ["steel"], "city": "", "website": "https://www.kenresearch.com/saudi-arabia-structural-steel-fabrication-market", "source": "Named in a Saudi structural steel fabrication market report"},
+    {"name": "Gulf Specialized Works", "categories": ["steel"], "city": "", "website": "https://www.kenresearch.com/saudi-arabia-structural-steel-fabrication-market", "source": "Named in a Saudi structural steel fabrication market report"},
+    {"name": "Arabian International Company for Steel Structures (AIC Steel)", "categories": ["steel"], "city": "", "website": "https://www.kenresearch.com/saudi-arabia-structural-steel-fabrication-market", "source": "Named in a Saudi structural steel fabrication market report"},
+    {"name": "Jawdah", "categories": ["envelope", "internal"], "city": "", "website": "https://jawdah.sa/product/sandwich-panel/", "source": "Company website: PIR sandwich panels for roofs and walls in Saudi Arabia"},
+    {"name": "TSSC Group", "categories": ["internal", "hvac", "envelope"], "city": "", "website": "https://tsscgroup.com/saudi-arabia/cold-store-room/", "source": "Company website: cold store panels, modular cold rooms, pre-insulated ductwork"},
+    {"name": "Emaar Industries", "categories": ["envelope", "internal"], "city": "", "country": "Oman", "website": "https://emaarllc.com/products/cold-room/panels", "source": "Company website: PU/PIR panels and cold rooms; supplies Saudi Arabia"},
+    {"name": "CGS", "categories": ["hvac", "internal"], "city": "Riyadh", "website": "https://www.cgs.com.sa/refrigeration.php", "source": "Company website: industrial refrigeration and cold stores with insulated panels"},
+    {"name": "ALBA Steel Industries", "categories": ["internal", "hvac"], "city": "", "website": "https://alba.com.sa/alba/?page_id=2208", "source": "Company website: walk-in cold rooms and freezer rooms manufacturer"},
+    {"name": "Snowland Gulf", "categories": ["internal", "hvac"], "city": "Riyadh", "website": "https://www.snowlandgulf.com/cold-room-manufacturer-in-saudi-arabia/", "source": "Company website: cold room manufacturer, Saudi Arabia"},
+    {"name": "SFFECO", "categories": ["fire"], "city": "Riyadh", "website": "https://sffeco.com", "source": "Company website: fire pumps, sprinklers and equipment; plants in Riyadh and Dubai"},
+    {"name": "Saudi ProTech", "categories": ["fire"], "city": "Jeddah", "website": "https://saudiprotech.com/service/firefighting-systems-in-saudi-arabia/", "source": "Company website: sprinklers, pump rooms, Civil Defense-approved systems"},
+    {"name": "Multi Goals", "categories": ["fire"], "city": "", "website": "https://multigoals.com.sa", "source": "Company website: fire alarm, fire fighting and fire pump systems"},
+    {"name": "Electrical and Power Contracting (EPC)", "categories": ["fire", "electrical"], "city": "", "website": "https://epc-ksa.com/fire-fighting-company-in-saudi-arabia/", "source": "Company website: fire protection and electrical contracting"},
+    {"name": "Civil and Electrical Projects Contracting Company (CEPCO)", "categories": ["electrical"], "city": "Jeddah", "website": "https://en.wikipedia.org/wiki/Civil_and_Electrical_Projects_Contracting_Company", "source": "Wikipedia: LV/MV/HV power works, transformers, substations; HQ Jeddah"},
+    {"name": "MSWC", "categories": ["fire", "plumbing", "hvac", "electrical"], "city": "", "website": "https://mswc.sa/service/firefighting-systems/", "source": "Company website: MEP contractor incl. firefighting, HVAC, electrical, plumbing"}
+  ]
+}

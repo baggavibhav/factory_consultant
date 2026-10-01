@@ -143,6 +143,38 @@ def _row(
     return rooms
 
 
+def _cut_doors(segs: list[Segment], gaps: list[tuple[float, float, float]]) -> list[Segment]:
+    """Split axis-aligned walls wherever a door opening sits on them."""
+    out: list[Segment] = []
+    for sg in segs:
+        if sg.category not in (Category.WALL, Category.COLD_PANEL):
+            out.append(sg)
+            continue
+        horizontal = abs(sg.y1 - sg.y2) < 1e-6
+        lo, hi = sorted((sg.x1, sg.x2)) if horizontal else sorted((sg.y1, sg.y2))
+        fixed = sg.y1 if horizontal else sg.x1
+        cuts = sorted(
+            (c - w / 2, c + w / 2)
+            for gx, gy, w in gaps
+            for c, on in (((gx, abs(gy - fixed)) if horizontal else (gy, abs(gx - fixed))),)
+            if on < 0.05 and lo + 0.2 < c < hi - 0.2
+        )
+        pos = lo
+        for a, b in cuts:
+            if a > pos + 0.05:
+                out.append(_piece(sg, horizontal, fixed, pos, a))
+            pos = max(pos, b)
+        if hi > pos + 0.05:
+            out.append(_piece(sg, horizontal, fixed, pos, hi))
+    return out
+
+
+def _piece(sg: Segment, horizontal: bool, fixed: float, a: float, b: float) -> Segment:
+    if horizontal:
+        return Segment(x1=a, y1=fixed, x2=b, y2=fixed, category=sg.category, layer=sg.layer)
+    return Segment(x1=fixed, y1=a, x2=fixed, y2=b, category=sg.category, layer=sg.layer)
+
+
 def _depth_for(table: list[tuple[float, float]], value: float) -> float:
     return next(d for limit, d in table if value <= limit)
 
@@ -155,15 +187,17 @@ def build_layout(values: dict, program: Program, tpl: Template) -> ConceptLayout
     x0, y0 = site["setback_west_m"], site["setback_front_m"]
     building = BBox(xmin=x0, ymin=y0, xmax=x0 + length, ymax=y0 + depth)
     plot = BBox(xmin=0, ymin=0, xmax=pw, ymax=pd)
-    if site["setback_west_m"] < 15:
+    min_in = site.get("min_goods_in_yard_m", 15.0)
+    min_out = site.get("min_dispatch_apron_m", 30.0)
+    if site["setback_west_m"] < min_in:
         warnings.append(
-            "The goods-in yard is under 15 m: delivery trucks may not be able to "
+            f"The goods-in yard is under {min_in:.0f} m: delivery trucks may not be able to "
             "reach the raw-material docks."
         )
-    if site["setback_east_m"] < 30:
+    if site["setback_east_m"] < min_out:
         warnings.append(
-            "The dispatch apron is under 30 m: articulated trucks need about "
-            "30–35 m to turn and reverse onto docks."
+            f"The dispatch apron is under {min_out:.0f} m: trucks for this plant type need "
+            "about that much room to turn and reverse onto docks."
         )
 
     # --- Street strip: two rows of rooms with a corridor between them.
@@ -182,6 +216,27 @@ def build_layout(values: dict, program: Program, tpl: Template) -> ConceptLayout
         return round(min(st["row_max_m"], max(st["row_min_m"], need)), 2)
 
     sd, nd = row_depth(south), row_depth(north)
+
+    # Put the hygiene stations where staff enter production: find where the production
+    # slice starts along the hall and move them to that point of the north row.
+    order = sorted(program.hall, key=lambda s: s.group)
+    sums: dict[int, float] = {}
+    for s_ in order:
+        sums[s_.group] = sums.get(s_.group, 0) + s_.area_m2
+    total = sum(sums.values())
+    prod_group = next((s_.group for s_ in order if s_.category == "production"), None)
+    if prod_group is not None:
+        before = sum(a for g, a in sums.items() if g < prod_group)
+        target = length * before / total + 1.0
+        hyg = [s_ for s_ in north if "hygiene" in s_.name.lower()]
+        rest = [s_ for s_ in north if s_ not in hyg]
+        cum, at = 0.0, len(rest)
+        for i, s_ in enumerate(rest):
+            if cum >= target:
+                at = i
+                break
+            cum += s_.area_m2 / nd
+        north = rest[:at] + hyg + rest[at:]
     rooms = _row(south, x0, length, y0, sd, "Flexible offices")
     rooms.append(
         Room(
@@ -278,6 +333,10 @@ def build_layout(values: dict, program: Program, tpl: Template) -> ConceptLayout
     for x, side in ((b.xmin, "west"), (b.xmax, "east")):
         openings.append(Opening("fire_exit", x, (hall_y0 + hall_y1) / 2 + 3, side))
         openings.append(Opening("fire_exit", x, y0 + sd + corridor / 2, side))
+    # Exits from the offices and amenities strip onto the street side as well.
+    for j in range(max(1, math.ceil(length / EXIT_SPACING))):
+        x = b.xmin + length * (j + 1) / (math.ceil(length / EXIT_SPACING) + 1)
+        openings.append(Opening("fire_exit", x, b.ymin, "south"))
     rec = next((r for r in rooms if r.name.startswith("Reception")), rooms[0])
     openings.append(Opening("entrance", (rec.rect.xmin + rec.rect.xmax) / 2, b.ymin, "south"))
     if values.get("flour_silos"):
@@ -286,6 +345,34 @@ def build_layout(values: dict, program: Program, tpl: Template) -> ConceptLayout
             openings.append(Opening("silo", prod.rect.xmin + 3 + 5 * j, b.ymax + 3.5, "north"))
         if b.ymax + 6 > pd:
             warnings.append("The rear setback is too small for the flour silos.")
+
+    # --- Door openings: cut gaps in the walls so people (and the walkthrough) can pass.
+    gaps: list[tuple[float, float, float]] = []  # (x, y, width) on an axis-aligned wall
+    corridor_s, corridor_n = y0 + sd, y0 + sd + corridor
+    for r in rooms:
+        q = r.rect
+        cx = (q.xmin + q.xmax) / 2
+        if r.name == "Corridor" or q.ymin >= hall_y0 - 1e-6:
+            continue
+        if q.ymax <= corridor_s + 1e-6:  # south row: door onto the corridor
+            gaps.append((cx, corridor_s, min(1.0, q.width * 0.6)))
+        else:  # north row: door onto the corridor
+            gaps.append((cx, corridor_n, min(1.0, q.width * 0.6)))
+            if "hygiene" in r.name.lower():  # and straight into production
+                gaps.append((cx, hall_y0, min(1.2, q.width * 0.6)))
+    for xa, _ in group_x[1:]:  # wide openings between hall zones (forklifts and conveyors)
+        gaps.append((xa, (hall_y0 + hall_y1) / 2, 3.0))
+    for xa, xb, y in stack_lines:
+        gaps.append(((xa + xb) / 2, y, 2.0))
+    for r in hall_rooms:
+        if r.category == "cold":
+            q = r.rect
+            gaps.append((q.xmin + COLD_INSET, (q.ymin + q.ymax) / 2, 1.5))
+    for o in openings:
+        if o.kind in ("fire_exit", "entrance", "dock_in", "dock_out"):
+            w = {"fire_exit": 1.8, "entrance": 2.4}.get(o.kind, 3.0)
+            gaps.append((o.x, o.y, w))
+    segs = _cut_doors(segs, gaps)
 
     # --- Column grid.
     bay = values.get("bay_m") or tpl.building["bay_m"]

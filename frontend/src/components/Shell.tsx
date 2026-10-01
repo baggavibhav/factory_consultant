@@ -21,11 +21,11 @@ function useTheme(): [Theme, (t: Theme) => void] {
 
 export default function Shell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useTheme();
-  const [server, setServer] = useState<{ ok: boolean; version?: string }>({ ok: false });
+  const [server, setServer] = useState<{ ok: boolean; version?: string; demo?: boolean }>({ ok: false });
 
   useEffect(() => {
     let alive = true;
-    const check = () => api.meta().then((m) => alive && setServer({ ok: true, version: m.version })).catch(() => alive && setServer({ ok: false }));
+    const check = () => api.meta().then((m) => alive && setServer({ ok: true, version: m.version, demo: m.demo })).catch(() => alive && setServer({ ok: false }));
     check();
     const t = setInterval(check, 15000);
     return () => { alive = false; clearInterval(t); };
@@ -45,10 +45,14 @@ export default function Shell({ children }: { children: ReactNode }) {
         <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
           <FolderKanban size={17} /> Projects
         </NavLink>
+        <NavLink to="/cost-library" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          <Calculator size={17} /> Cost library
+        </NavLink>
+        <NavLink to="/suppliers" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+          <Building2 size={17} /> Suppliers
+        </NavLink>
         <div className="nav-section">Coming next</div>
-        <span className="nav-link disabled" aria-disabled="true"><BookOpen size={17} /> Knowledge base <span className="soon">v0.5</span></span>
-        <span className="nav-link disabled" aria-disabled="true"><Calculator size={17} /> Cost library <span className="soon">v0.8</span></span>
-        <span className="nav-link disabled" aria-disabled="true"><Building2 size={17} /> Contractors <span className="soon">v0.9</span></span>
+        <span className="nav-link disabled" aria-disabled="true"><BookOpen size={17} /> Agent assistant <span className="soon">v1.1</span></span>
         <div className="rail-foot">
           <div className="theme-toggle" role="group" aria-label="Colour theme">
             <button aria-pressed={theme === "light"} onClick={() => setTheme("light")} title="Light"><Sun size={14} /><span className="sr-only">Light</span></button>
@@ -61,7 +65,10 @@ export default function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </nav>
-      <main className="main">{children}</main>
+      <main className="main">
+        {server.demo && (
+          <div className="demo-banner" role="note">Public demo with sample projects. Please don't enter confidential data; projects may reset when the demo restarts.</div>
+        )}{children}</main>
     </div>
   );
 }

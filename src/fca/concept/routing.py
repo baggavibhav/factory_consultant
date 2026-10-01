@@ -20,7 +20,7 @@ from collections import defaultdict
 from itertools import pairwise
 
 from fca.concept.layout import ConceptLayout, Room
-from fca.concept.mep import MepModel, Pt, orthogonal
+from fca.concept.mep import FIXTURES, MepModel, Pt, orthogonal
 from fca.model.building import roof_height
 
 WET_HOT = ("changing", "hygiene", "dining", "utensil", "ablution", "hand wash")
@@ -139,7 +139,10 @@ def add_detailed_routes(m: MepModel, lay: ConceptLayout, values: dict, plant_typ
 
     # ---------------- Process power to production lines ----------------
     lines = values["lines_now"] + values["lines_future"]
-    prod = next((r for r in hall if r.name.lower().startswith("production")), None)
+    prod = next(
+        (r for r in hall if r.name.lower().startswith("production")),
+        next((r for r in hall if r.category == "production"), None),
+    )
     process_len = 0.0
     line_points: list[tuple[float, float]] = []
     if prod and lines:
@@ -166,6 +169,116 @@ def add_detailed_routes(m: MepModel, lay: ConceptLayout, values: dict, plant_typ
                 (q.xmin + 2.0, y, ffl + 2.0),
             ]
             process_len += m.route("electrical", "Process power feeder", path, 60).length
+
+    # ---------------- Sample production equipment and its connections ----------------
+    from fca.concept.equipment import sample_equipment
+
+    machines = sample_equipment(lay, values, plant_type)
+    m.machines = machines
+    by_line: dict[int, list] = defaultdict(list)
+    for mc in machines:
+        svc = "equipment_future" if mc.future else "equipment"
+        m.item(
+            svc, mc.name, (mc.x, mc.y, ffl + mc.height / 2), (mc.x1 - mc.x0, mc.width, mc.height)
+        )
+        by_line[mc.line].append(mc)
+    main_z = ffl + 3.4
+    strip_mid = b.ymin + lay.strip_depth / 2
+    ring_z = next((rt.points[0][2] for rt in m.routes if rt.kind == "Air ring main"), eaves - 2.6)
+    machine_power = 0.0
+    water_points = air_points = hoods = 0
+    for mcs in by_line.values():
+        mcs.sort(key=lambda mc: mc.x0)
+        for a, c in pairwise(mcs):  # conveyors between machines
+            if c.x0 - a.x1 > 0.2:
+                if abs(a.y - c.y) < 0.05:
+                    m.item(
+                        "equipment_future" if a.future else "equipment",
+                        "Conveyor",
+                        ((a.x1 + c.x0) / 2, a.y, ffl + 0.9),
+                        (c.x0 - a.x1, 0.6, 0.15),
+                    )
+                else:
+                    xm = (a.x1 + c.x0) / 2
+                    svc = "equipment_future" if a.future else "equipment"
+                    m.item(
+                        svc, "Conveyor", ((a.x1 + xm) / 2, a.y, ffl + 0.9), (xm - a.x1, 0.6, 0.15)
+                    )
+                    m.item(
+                        svc,
+                        "Conveyor",
+                        (xm, (a.y + c.y) / 2, ffl + 0.9),
+                        (0.6, abs(c.y - a.y) + 0.6, 0.15),
+                    )
+                    m.item(
+                        svc, "Conveyor", ((xm + c.x0) / 2, c.y, ffl + 0.9), (c.x0 - xm, 0.6, 0.15)
+                    )
+        if mcs[0].future:
+            continue
+        # Power: from the line panel along the line at high level, with a drop to each machine.
+        panel = next(
+            (
+                it.at
+                for it in m.items
+                if it.kind == "Line control panel" and abs(it.at[1] - mcs[0].y) < 0.6
+            ),
+            None,
+        )
+        zp = ffl + 4.4
+        if panel:
+            path = [(panel[0], panel[1], ffl + 2.0), (panel[0], panel[1], zp)]
+            path += [(mc.x, mc.y, zp) for mc in mcs]
+            machine_power += m.route("electrical", "Machine power", orthogonal(path), 30).length
+            for mc in mcs:
+                machine_power += m.route(
+                    "electrical",
+                    "Machine drop",
+                    [(mc.x, mc.y, zp), (mc.x, mc.y, ffl + mc.height + 0.1)],
+                    20,
+                ).length
+        for mc in mcs:
+            top = ffl + mc.height + 0.1
+            if "water" in mc.needs:
+                m.route(
+                    "water",
+                    "Process water to machine",
+                    orthogonal(
+                        [(mc.x, strip_mid, main_z), (mc.x, mc.y, main_z), (mc.x, mc.y, top)]
+                    ),
+                    25,
+                )
+                water_points += 1
+            if "air" in mc.needs:
+                m.route(
+                    "air",
+                    "Air to machine",
+                    orthogonal(
+                        [(mc.x, hall_y0 + 2, ring_z), (mc.x, mc.y, ring_z), (mc.x, mc.y, top)]
+                    ),
+                    20,
+                )
+                air_points += 1
+            if "extract" in mc.needs:
+                hood_z = ffl + mc.height + 0.9
+                m.item(
+                    "hvac",
+                    "Oven extract hood",
+                    (mc.x, mc.y, hood_z),
+                    ((mc.x1 - mc.x0) * 0.6, mc.width + 0.6, 0.6),
+                )
+                roof = roof_height(cfg, mc.y)
+                m.route(
+                    "hvac",
+                    "Oven extract duct",
+                    [(mc.x, mc.y, hood_z + 0.3), (mc.x, mc.y, roof + 0.4)],
+                    500,
+                )
+                m.item("hvac", "Oven exhaust fan (roof)", (mc.x, mc.y, roof + 0.8), (1.2, 1.2, 0.9))
+                hoods += 1
+    m.facts["equipment"] = {
+        "machines": sum(1 for mc in machines if not mc.future),
+        "future_machines": sum(1 for mc in machines if mc.future),
+    }
 
     # ---------------- Fire alarm loop ----------------
     panel_room = next((r for r in strip if r.name.lower().startswith("reception")), strip[0])
@@ -196,7 +309,7 @@ def add_detailed_routes(m: MepModel, lay: ConceptLayout, values: dict, plant_typ
         if not any(k in r.name.lower() for k in WET_HOT):
             continue
         outs = [
-            it.at for it in m.items if it.kind == "Outlet" and _inside(r, it.at[0], it.at[1], 0.1)
+            it.at for it in m.items if it.kind in FIXTURES and _inside(r, it.at[0], it.at[1], 0.1)
         ]
         if not outs:
             continue
@@ -327,6 +440,70 @@ def add_detailed_routes(m: MepModel, lay: ConceptLayout, values: dict, plant_typ
             )
             m.item("gas", "Oven gas valve train", (ox, y, ffl + 1.1), (0.6, 0.3, 0.5))
             trains += 1
+
+    # ---------------- Devices: switches, boxes, isolators, safety equipment ----------------
+    switches = jboxes = isolators = 0
+    for r in lay.rooms:
+        q = r.rect
+        in_hall = r in hall
+        south_row = not in_hall and q.ymin <= b.ymin + 1e-6
+        y = q.ymin + 0.15 if in_hall else (q.ymax - 0.12 if south_row else q.ymin + 0.12)
+        x = q.xmin + (1.5 if in_hall else 0.6)
+        m.item("electrical", "Light switch", (x, y, ffl + 1.2), (0.09, 0.04, 0.09))
+        top = (eaves - 1.8) if in_hall else ffl + 3.0
+        m.route("electrical", "Switch drop", [(x, y, ffl + 1.25), (x, y, top)], 20)
+        switches += 1
+    for rt in [r for r in m.routes if r.kind == "Lighting circuit"]:
+        p = rt.points[2] if len(rt.points) > 2 else rt.points[-1]
+        m.item("electrical", "Junction box", p, (0.15, 0.15, 0.1))
+        jboxes += 1
+    for mc in machines:
+        if not mc.future:
+            m.item(
+                "electrical",
+                "Local isolator",
+                (mc.x0 - 0.3, mc.y + mc.width / 2 + 0.25, ffl + 1.3),
+                (0.2, 0.15, 0.3),
+            )
+            isolators += 1
+    inward = {"north": (0, -0.35), "south": (0, 0.35), "west": (0.35, 0), "east": (-0.35, 0)}
+    exits = [o for o in lay.openings if o.kind in ("fire_exit", "entrance")]
+    signs = calls = extinguishers = reels = 0
+    for k, o in enumerate(exits):
+        dx, dy = inward[o.side]
+        along = (1.2, 0) if o.side in ("north", "south") else (0, 1.2)
+        m.item("fire", "Exit sign", (o.x + dx, o.y + dy, ffl + 2.5), (0.35, 0.06, 0.16))
+        m.item(
+            "fire",
+            "Manual call point",
+            (o.x + dx + along[0], o.y + dy + along[1], ffl + 1.4),
+            (0.1, 0.06, 0.1),
+        )
+        m.item(
+            "fire",
+            "Fire extinguisher",
+            (o.x + dx - along[0], o.y + dy - along[1], ffl + 0.35),
+            (0.2, 0.2, 0.6),
+        )
+        signs += 1
+        calls += 1
+        extinguishers += 1
+        if o.kind == "fire_exit" and k % 2 == 0:
+            m.item(
+                "fire",
+                "Fire hose reel",
+                (o.x + dx + 2.5 * along[0] / 1.2, o.y + dy + 2.5 * along[1] / 1.2, ffl + 1.3),
+                (0.7, 0.25, 0.7),
+            )
+            reels += 1
+    sounders = 0
+    for d in detectors[:: max(1, 7)]:  # about one sounder per seven detectors
+        m.item("fire", "Alarm sounder", (d[0] + 0.5, d[1], d[2]), (0.15, 0.15, 0.1))
+        sounders += 1
+    fixture_count: dict[str, int] = defaultdict(int)
+    for it in m.items:
+        if it.kind in FIXTURES:
+            fixture_count[it.kind] += 1
 
     # ---------------- Quantities ----------------
     m.facts.setdefault("electrical", {}).update({"lighting_circuits": circuits, "sockets": sockets})
@@ -462,3 +639,71 @@ def add_detailed_routes(m: MepModel, lay: ConceptLayout, values: dict, plant_typ
         "One per production line",
     )
     m.qty("gas", "Oven gas valve trains", "nr", trains, "gas.valve_train", "One per line")
+    m.qty(
+        "electrical",
+        "Light switches",
+        "nr",
+        switches,
+        "electrical.socket",
+        "One per room at the entry",
+    )
+    m.qty(
+        "electrical",
+        "Junction boxes",
+        "nr",
+        jboxes,
+        "electrical.lighting_cable",
+        "One per lighting circuit",
+    )
+    m.qty(
+        "electrical",
+        "Local isolators at machines",
+        "nr",
+        isolators,
+        "electrical.isolator",
+        "One per machine in the sample layout",
+    )
+    m.qty("fire", "Emergency exit signs", "nr", signs, "fire.detector", "One at each exit")
+    m.qty("fire", "Manual call points", "nr", calls, "fire.detector", "One beside each exit")
+    m.qty(
+        "fire", "Fire extinguishers", "nr", extinguishers, "fire.detector", "One beside each exit"
+    )
+    m.qty("fire", "Fire hose reels", "nr", reels, "fire.hydrant", "At alternate exits")
+    m.qty(
+        "fire", "Alarm sounders", "nr", sounders, "fire.detector", "About one per seven detectors"
+    )
+    for kind, n in sorted(fixture_count.items()):
+        m.qty(
+            "water",
+            f"{kind}s" if not kind.endswith("h") else f"{kind}es",
+            "nr",
+            n,
+            "plumbing.outlet",
+            "Placed per room type (breakdown of sanitary outlets)",
+        )
+    basis = "Connections to the sample machine layout (machines themselves are not included)"
+    m.qty(
+        "electrical",
+        "Machine power cabling and drops",
+        "m",
+        machine_power,
+        "electrical.process_cable",
+        basis,
+    )
+    m.qty(
+        "water",
+        "Process water connections to machines",
+        "nr",
+        water_points,
+        "plumbing.outlet",
+        basis + "; mixers and proofer humidifiers",
+    )
+    m.qty("air", "Compressed-air connections to machines", "nr", air_points, "air.drop", basis)
+    m.qty(
+        "hvac",
+        "Oven extract hoods, ducts and roof fans",
+        "nr",
+        hoods,
+        "hvac.extract_fan",
+        basis + "; one per oven",
+    )
